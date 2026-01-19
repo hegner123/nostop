@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git rev-parse:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "mcp__hq__create_project",
+      "mcp__hq__claim_step",
+      "mcp__hq__start_step",
+      "Bash(go mod tidy:*)",
+      "Bash(go get:*)"
+    ]
+  },
+  "outputStyle": "Explanatory",
+  "spinnerTipsEnabled": false
+}
