@@ -24,9 +24,11 @@ const (
 
 // Client is a client for the Claude Messages API.
 type Client struct {
-	apiKey     string
-	baseURL    string
-	httpClient *http.Client
+	apiKey      string
+	baseURL     string
+	httpClient  *http.Client
+	retryConfig *RetryConfig
+	debug       bool
 }
 
 // ClientOption configures a Client.
@@ -53,6 +55,31 @@ func WithHTTPClient(httpClient *http.Client) ClientOption {
 	}
 }
 
+// WithRetryConfig enables retry logic with the specified configuration.
+func WithRetryConfig(cfg RetryConfig) ClientOption {
+	return func(c *Client) {
+		c.retryConfig = &cfg
+	}
+}
+
+// WithDefaultRetry enables retry logic with default configuration.
+func WithDefaultRetry() ClientOption {
+	return func(c *Client) {
+		cfg := DefaultRetryConfig()
+		c.retryConfig = &cfg
+	}
+}
+
+// WithDebug enables debug logging for the client.
+func WithDebug(debug bool) ClientOption {
+	return func(c *Client) {
+		c.debug = debug
+		if c.retryConfig != nil {
+			c.retryConfig.Debug = debug
+		}
+	}
+}
+
 // NewClient creates a new Claude API client.
 func NewClient(apiKey string, opts ...ClientOption) *Client {
 	c := &Client{
@@ -72,12 +99,26 @@ func NewClient(apiKey string, opts ...ClientOption) *Client {
 
 // Send sends a message request to the Claude API and returns the response.
 // This is the non-streaming version of the Messages API.
+// If retry is configured, it will automatically retry on retryable errors.
 func (c *Client) Send(ctx context.Context, req *Request) (*Response, error) {
 	// Ensure stream is disabled for non-streaming requests
 	if req.Stream != nil && *req.Stream {
 		return nil, fmt.Errorf("use SendStream for streaming requests")
 	}
 
+	// If retry is not configured, use single attempt
+	if c.retryConfig == nil {
+		return c.sendOnce(ctx, req)
+	}
+
+	// Use retry logic
+	return WithRetry(ctx, *c.retryConfig, func() (*Response, error) {
+		return c.sendOnce(ctx, req)
+	})
+}
+
+// sendOnce performs a single Send request without retry.
+func (c *Client) sendOnce(ctx context.Context, req *Request) (*Response, error) {
 	body, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("marshal request: %w", err)
@@ -102,7 +143,7 @@ func (c *Client) Send(ctx context.Context, req *Request) (*Response, error) {
 	}
 
 	if httpResp.StatusCode != http.StatusOK {
-		return nil, c.parseError(httpResp.StatusCode, respBody)
+		return nil, c.parseErrorWithHeaders(httpResp, respBody)
 	}
 
 	var resp Response
@@ -114,7 +155,21 @@ func (c *Client) Send(ctx context.Context, req *Request) (*Response, error) {
 }
 
 // CountTokens counts the tokens in a message request without sending it.
+// If retry is configured, it will automatically retry on retryable errors.
 func (c *Client) CountTokens(ctx context.Context, req *TokenCountRequest) (*TokenCountResponse, error) {
+	// If retry is not configured, use single attempt
+	if c.retryConfig == nil {
+		return c.countTokensOnce(ctx, req)
+	}
+
+	// Use retry logic
+	return WithRetry(ctx, *c.retryConfig, func() (*TokenCountResponse, error) {
+		return c.countTokensOnce(ctx, req)
+	})
+}
+
+// countTokensOnce performs a single CountTokens request without retry.
+func (c *Client) countTokensOnce(ctx context.Context, req *TokenCountRequest) (*TokenCountResponse, error) {
 	body, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("marshal request: %w", err)
@@ -139,7 +194,7 @@ func (c *Client) CountTokens(ctx context.Context, req *TokenCountRequest) (*Toke
 	}
 
 	if httpResp.StatusCode != http.StatusOK {
-		return nil, c.parseError(httpResp.StatusCode, respBody)
+		return nil, c.parseErrorWithHeaders(httpResp, respBody)
 	}
 
 	var resp TokenCountResponse
@@ -189,6 +244,42 @@ func (c *Client) parseErrorResponse(resp *http.Response) error {
 
 // parseError parses an API error response.
 func (c *Client) parseError(statusCode int, body []byte) error {
+	return c.parseErrorWithRetryAfter(statusCode, body, 0)
+}
+
+// parseErrorWithHeaders parses an API error response including HTTP headers.
+// It extracts the Retry-After header for rate limit errors.
+func (c *Client) parseErrorWithHeaders(resp *http.Response, body []byte) error {
+	var retryAfter time.Duration
+
+	// Parse Retry-After header if present
+	if retryAfterStr := resp.Header.Get("Retry-After"); retryAfterStr != "" {
+		// Try parsing as seconds first
+		if seconds, err := time.ParseDuration(retryAfterStr + "s"); err == nil {
+			retryAfter = seconds
+		} else if secs := parseRetryAfterSeconds(retryAfterStr); secs > 0 {
+			retryAfter = time.Duration(secs) * time.Second
+		}
+	}
+
+	return c.parseErrorWithRetryAfter(resp.StatusCode, body, retryAfter)
+}
+
+// parseRetryAfterSeconds parses the Retry-After header value as seconds.
+func parseRetryAfterSeconds(s string) int64 {
+	var seconds int64
+	for _, c := range s {
+		if c >= '0' && c <= '9' {
+			seconds = seconds*10 + int64(c-'0')
+		} else {
+			break
+		}
+	}
+	return seconds
+}
+
+// parseErrorWithRetryAfter parses an API error response with optional Retry-After duration.
+func (c *Client) parseErrorWithRetryAfter(statusCode int, body []byte, retryAfter time.Duration) error {
 	var apiErr APIError
 	if err := json.Unmarshal(body, &apiErr); err != nil {
 		// If we can't parse the error, return a generic error with the status code
@@ -198,6 +289,8 @@ func (c *Client) parseError(statusCode int, body []byte) error {
 				Type:    ErrorTypeAPI,
 				Message: fmt.Sprintf("HTTP %d: %s", statusCode, string(body)),
 			},
+			StatusCode: statusCode,
+			RetryAfter: retryAfter,
 		}
 	}
 
@@ -220,6 +313,9 @@ func (c *Client) parseError(statusCode int, body []byte) error {
 			apiErr.ErrorDetails.Type = ErrorTypeAPI
 		}
 	}
+
+	apiErr.StatusCode = statusCode
+	apiErr.RetryAfter = retryAfter
 
 	return &apiErr
 }

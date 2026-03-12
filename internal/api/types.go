@@ -1,7 +1,10 @@
 // Package api provides types and client for the Claude Messages API.
 package api
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"time"
+)
 
 // Role represents the role of a message in a conversation.
 type Role string
@@ -71,6 +74,35 @@ func NewCacheControl(ttl *CacheTTL) *CacheControl {
 	}
 }
 
+// WithCache creates a CacheControl with the specified TTL.
+// This is a convenience helper for setting cache control on content blocks.
+func WithCache(ttl CacheTTL) *CacheControl {
+	return &CacheControl{
+		Type: "ephemeral",
+		TTL:  &ttl,
+	}
+}
+
+// WithEphemeralCache creates a CacheControl with default 5-minute TTL.
+// Use this for frequently accessed but moderately changing content.
+func WithEphemeralCache() *CacheControl {
+	ttl := CacheTTL5Min
+	return &CacheControl{
+		Type: "ephemeral",
+		TTL:  &ttl,
+	}
+}
+
+// WithLongCache creates a CacheControl with 1-hour TTL.
+// Use this for stable content like system prompts.
+func WithLongCache() *CacheControl {
+	ttl := CacheTTL1Hour
+	return &CacheControl{
+		Type: "ephemeral",
+		TTL:  &ttl,
+	}
+}
+
 // ----------------------------------------------------------------------------
 // Input Content Blocks (for requests)
 // ----------------------------------------------------------------------------
@@ -88,6 +120,21 @@ func NewTextBlock(text string) TextBlockParam {
 		Type: ContentBlockTypeText,
 		Text: text,
 	}
+}
+
+// NewTextBlockWithCache creates a new text content block with cache control.
+func NewTextBlockWithCache(text string, cache *CacheControl) TextBlockParam {
+	return TextBlockParam{
+		Type:         ContentBlockTypeText,
+		Text:         text,
+		CacheControl: cache,
+	}
+}
+
+// SetCacheControl returns a copy of the TextBlockParam with cache control set.
+func (t TextBlockParam) SetCacheControl(cache *CacheControl) TextBlockParam {
+	t.CacheControl = cache
+	return t
 }
 
 // Base64ImageSource represents a base64-encoded image.
@@ -529,8 +576,10 @@ const (
 
 // APIError represents an error from the Claude API.
 type APIError struct {
-	Type         string      `json:"type"` // Always "error"
-	ErrorDetails ErrorDetail `json:"error"`
+	Type         string        `json:"type"` // Always "error"
+	ErrorDetails ErrorDetail   `json:"error"`
+	StatusCode   int           `json:"-"` // HTTP status code (not from JSON)
+	RetryAfter   time.Duration `json:"-"` // Retry-After header value (not from JSON)
 }
 
 // ErrorDetail contains the error details.

@@ -1,11 +1,13 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/user/rlm/internal/topic"
 	"github.com/user/rlm/pkg/rlm"
 )
 
@@ -95,6 +97,27 @@ type App struct {
 
 	// quitting indicates the app is shutting down.
 	quitting bool
+
+	// chatModel is the chat view model.
+	chatModel *ChatModel
+
+	// debugModel is the debug/context info view model.
+	debugModel *DebugModel
+
+	// contextMgr is the context manager for token tracking.
+	contextMgr *rlm.ContextManager
+
+	// tracker is the topic tracker.
+	tracker *topic.TopicTracker
+
+	// archiver is the topic archiver for restoration.
+	archiver *rlm.Archiver
+
+	// topicsModel is the topics overview view model.
+	topicsModel *TopicsModel
+
+	// history is the conversation history browser model.
+	history *HistoryModel
 }
 
 // NewApp creates a new App instance with the given RLM engine.
@@ -108,7 +131,8 @@ func NewApp(engine *rlm.RLM) *App {
 
 // Init implements tea.Model. It returns any initial commands.
 func (a App) Init() tea.Cmd {
-	// Return nil for now - sub-views will add their own init commands
+	Log("App.Init called - chatModel=%v, rlm=%v", a.chatModel != nil, a.rlm != nil)
+	// chatModel is initialized on first WindowSizeMsg
 	return nil
 }
 
@@ -116,30 +140,101 @@ func (a App) Init() tea.Cmd {
 func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
+		Log("WindowSizeMsg: width=%d height=%d chatModel=%v", msg.Width, msg.Height, a.chatModel != nil)
 		a.width = msg.Width
 		a.height = msg.Height
 		a.ready = true
+
+		// Initialize or update models with new dimensions
+		contentHeight := msg.Height - 6 // Account for header, status bar, help
+		var cmds []tea.Cmd
+
+		// Initialize or update chat model
+		if a.chatModel == nil {
+			Log("Initializing chatModel: rlm=%v width=%d contentHeight=%d", a.rlm != nil, msg.Width-4, contentHeight)
+			cm := NewChatModel(a.rlm, msg.Width-4, contentHeight)
+			a.chatModel = &cm
+			Log("chatModel initialized: %v", a.chatModel != nil)
+			cmds = append(cmds, a.chatModel.Init())
+		} else {
+			Log("Updating chatModel size: width=%d height=%d", msg.Width-4, contentHeight)
+			a.chatModel.SetSize(msg.Width-4, contentHeight)
+		}
+
+		if a.history == nil && a.rlm != nil {
+			a.history = NewHistoryModel(a.rlm.Storage(), msg.Width-4, contentHeight)
+			cmds = append(cmds, a.history.Init())
+		} else if a.history != nil {
+			a.history.SetSize(msg.Width-4, contentHeight)
+		}
+
+		// Initialize or update topics model with new dimensions
+		if a.topicsModel == nil && a.tracker != nil {
+			a.topicsModel = NewTopicsModel(a.tracker, a.archiver, a.convID, msg.Width-4, contentHeight)
+			cmds = append(cmds, a.topicsModel.Init())
+		} else if a.topicsModel != nil {
+			a.topicsModel.SetSize(msg.Width-4, contentHeight)
+		}
+
+		// Initialize or update debug model with new dimensions
+		if a.debugModel == nil {
+			a.debugModel = NewDebugModel(a.contextMgr, a.tracker, a.convID, msg.Width-4, contentHeight)
+		} else {
+			a.debugModel.SetSize(msg.Width-4, contentHeight)
+		}
+
+		if len(cmds) > 0 {
+			return a, tea.Batch(cmds...)
+		}
 		return a, nil
 
 	case tea.KeyMsg:
+		Log("KeyMsg: key=%q view=%v chatModel=%v", msg.String(), a.view, a.chatModel != nil)
+
+		// ctrl+c ALWAYS quits - never block emergency exit
+		if msg.String() == "ctrl+c" {
+			Log("ctrl+c pressed - quitting (emergency exit)")
+			a.quitting = true
+			return a, tea.Quit
+		}
+
+		// Don't intercept other keys during streaming
+		if a.view == ViewChat && a.chatModel != nil && a.chatModel.IsStreaming() {
+			Log("KeyMsg ignored - streaming in progress")
+			return a, nil
+		}
+
 		// Handle global key bindings
 		switch msg.String() {
-		case "ctrl+c", "esc":
+
+		case "esc":
+			// In chat view, esc blurs input; otherwise quit
+			if a.view == ViewChat && a.chatModel != nil {
+				a.chatModel.Blur()
+				return a, nil
+			}
 			a.quitting = true
 			return a, tea.Quit
 
 		case "ctrl+n":
 			// New conversation
+			Log("ctrl+n pressed - creating new conversation")
 			return a.handleNewConversation()
 
 		case "ctrl+h":
-			// Switch to history view
+			// Switch to history view and refresh
 			a.view = ViewHistory
+			if a.history != nil {
+				return a, a.history.Refresh()
+			}
 			return a, nil
 
 		case "ctrl+t":
-			// Switch to topics view
+			// Switch to topics view and refresh
 			a.view = ViewTopics
+			if a.topicsModel != nil {
+				return a, a.topicsModel.Refresh()
+			}
 			return a, nil
 
 		case "ctrl+d":
@@ -150,11 +245,19 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "tab":
 			// Cycle views forward
 			a.view = (a.view + 1) % 4
+			// Focus chat input when switching to chat view
+			if a.view == ViewChat && a.chatModel != nil {
+				return a, a.chatModel.Focus()
+			}
 			return a, nil
 
 		case "shift+tab":
 			// Cycle views backward
 			a.view = (a.view + 3) % 4
+			// Focus chat input when switching to chat view
+			if a.view == ViewChat && a.chatModel != nil {
+				return a, a.chatModel.Focus()
+			}
 			return a, nil
 		}
 
@@ -168,6 +271,100 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case clearErrMsg:
 		a.err = nil
 		return a, nil
+
+	// Chat streaming messages
+	case StreamStartMsg, StreamChunkMsg, StreamDoneMsg, StreamErrorMsg:
+		// Pass streaming messages to chat model
+		if a.chatModel == nil {
+			return a, nil
+		}
+		var cmd tea.Cmd
+		a.chatModel, cmd = a.chatModel.Update(msg)
+		// Sync conversation ID from chat model
+		a.convID = a.chatModel.GetConversation()
+		return a, cmd
+
+	case ConversationCreatedMsg:
+		// Update both app and chat model
+		a.convID = msg.ConvID
+		if a.chatModel != nil {
+			a.chatModel.SetConversation(msg.ConvID)
+			var cmd tea.Cmd
+			a.chatModel, cmd = a.chatModel.Update(msg)
+			// Load existing messages if any
+			return a, tea.Batch(cmd, a.loadChatMessages())
+		}
+		return a, a.loadChatMessages()
+
+	// History view messages
+	case ConversationSelectedMsg:
+		// Switch to chat view with selected conversation
+		a.convID = msg.ConvID
+		a.view = ViewChat
+		if a.chatModel != nil {
+			a.chatModel.SetConversation(msg.ConvID)
+			// Load messages for the selected conversation
+			return a, tea.Batch(a.chatModel.Focus(), a.loadChatMessages())
+		}
+		return a, a.loadChatMessages()
+
+	case ConversationsLoadedMsg, ConversationsLoadErrorMsg, ConversationDeletedMsg, ConversationDeleteErrorMsg:
+		// Delegate to history model
+		if a.history != nil {
+			a.history, _ = a.history.Update(msg)
+		}
+		return a, nil
+
+	// Topics view messages
+	case TopicsLoadedMsg:
+		// Delegate to topics model
+		if a.topicsModel != nil {
+			var cmd tea.Cmd
+			*a.topicsModel, cmd = a.topicsModel.Update(msg)
+			return a, cmd
+		}
+		return a, nil
+
+	case TopicRestoredMsg:
+		// Delegate to topics model and log to debug
+		var cmds []tea.Cmd
+		if a.topicsModel != nil {
+			var cmd tea.Cmd
+			*a.topicsModel, cmd = a.topicsModel.Update(msg)
+			cmds = append(cmds, cmd)
+		}
+		// Add archive event for restored topic
+		if msg.Topic != nil {
+			a.AddArchiveEvent(msg.Topic.Name, msg.Topic.TokenCount, true)
+		}
+		return a, tea.Batch(cmds...)
+
+	// Chat restore messages (pass to chat model)
+	case RestoreCheckResultMsg, RestoreAndSendMsg, TopicRestoreCompleteMsg:
+		var cmd tea.Cmd
+		a.chatModel, cmd = a.chatModel.Update(msg)
+		// If a topic was restored via chat, log to debug
+		if restoreMsg, ok := msg.(TopicRestoreCompleteMsg); ok && restoreMsg.Topic != nil {
+			a.AddArchiveEvent(restoreMsg.Topic.Name, restoreMsg.Topic.TokenCount, true)
+		}
+		return a, cmd
+
+	// Debug view messages
+	case ContextUsageMsg, RefreshDebugMsg, TickMsg, DebugErrorMsg:
+		// Delegate to debug model
+		if a.debugModel != nil {
+			var cmd tea.Cmd
+			*a.debugModel, cmd = a.debugModel.Update(msg)
+			return a, cmd
+		}
+		return a, nil
+	}
+
+	// Pass other messages to current view
+	if a.view == ViewChat {
+		var cmd tea.Cmd
+		a.chatModel, cmd = a.chatModel.Update(msg)
+		return a, cmd
 	}
 
 	return a, nil
@@ -175,11 +372,13 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View implements tea.Model. It renders the current view.
 func (a App) View() string {
+	Log("App.View called: ready=%v quitting=%v view=%v chatModel=%v", a.ready, a.quitting, a.view, a.chatModel != nil)
 	if a.quitting {
 		return "Goodbye!\n"
 	}
 
 	if !a.ready {
+		Log("App.View: not ready yet")
 		return "Initializing...\n"
 	}
 
@@ -261,12 +460,26 @@ func (a App) renderCurrentView() string {
 
 	switch a.view {
 	case ViewChat:
-		return a.renderChatPlaceholder(contentHeight)
+		// Use the chat model view, but update its size first
+		if a.chatModel != nil {
+			a.chatModel.SetSize(a.width-4, contentHeight)
+			return a.chatModel.View()
+		}
+		return "Initializing..."
 	case ViewHistory:
+		if a.history != nil {
+			return a.history.View()
+		}
 		return a.renderHistoryPlaceholder(contentHeight)
 	case ViewTopics:
+		if a.topicsModel != nil {
+			return a.topicsModel.View()
+		}
 		return a.renderTopicsPlaceholder(contentHeight)
 	case ViewDebug:
+		if a.debugModel != nil {
+			return a.debugModel.View()
+		}
 		return a.renderDebugPlaceholder(contentHeight)
 	default:
 		return ""
@@ -415,7 +628,8 @@ func (a App) renderStatusBar() string {
 
 // renderHelp renders the help text with key bindings.
 func (a App) renderHelp() string {
-	bindings := []string{
+	// Base global bindings
+	globalBindings := []string{
 		a.styles.RenderKeyBinding("ctrl+n", "new"),
 		a.styles.RenderKeyBinding("ctrl+h", "history"),
 		a.styles.RenderKeyBinding("ctrl+t", "topics"),
@@ -423,24 +637,69 @@ func (a App) renderHelp() string {
 		a.styles.RenderKeyBinding("tab", "switch view"),
 		a.styles.RenderKeyBinding("esc", "quit"),
 	}
-	return a.styles.Help.Render(strings.Join(bindings, "  "))
+
+	// Add view-specific help
+	var viewHelp string
+	switch a.view {
+	case ViewHistory:
+		if a.history != nil {
+			viewHelp = a.history.RenderHelp()
+		}
+	case ViewTopics:
+		if a.topicsModel != nil {
+			// Topics view help: j/k (navigate), a (toggle archived), r (restore)
+			viewHelp = a.styles.RenderKeyBinding("j/k", "navigate") + "  " +
+				a.styles.RenderKeyBinding("a", "toggle archived")
+			if a.topicsModel.ShowingArchived() && a.topicsModel.ArchivedCount() > 0 {
+				viewHelp += "  " + a.styles.RenderKeyBinding("r", "restore")
+			}
+		}
+	case ViewDebug:
+		// Debug view help: r (toggle auto-refresh), R (manual refresh)
+		viewHelp = a.styles.RenderKeyBinding("r", "toggle auto-refresh") + "  " +
+			a.styles.RenderKeyBinding("R", "refresh now")
+	}
+
+	if viewHelp != "" {
+		return a.styles.Help.Render(viewHelp + "  |  " + strings.Join(globalBindings, "  "))
+	}
+	return a.styles.Help.Render(strings.Join(globalBindings, "  "))
 }
 
 // updateCurrentView delegates key handling to the current view.
 func (a App) updateCurrentView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	// For now, just return - actual view implementations will handle specific keys
 	switch a.view {
 	case ViewChat:
-		// Chat view will handle: enter (send), up/down (scroll)
+		// Delegate to chat model
+		if a.chatModel != nil {
+			var cmd tea.Cmd
+			a.chatModel, cmd = a.chatModel.Update(msg)
+			return a, cmd
+		}
 		return a, nil
 	case ViewHistory:
-		// History view will handle: up/down (navigate), enter (select), delete
+		// Delegate to history model
+		if a.history != nil {
+			var cmd tea.Cmd
+			a.history, cmd = a.history.Update(msg)
+			return a, cmd
+		}
 		return a, nil
 	case ViewTopics:
-		// Topics view will handle: up/down (navigate), enter (details), r (restore)
+		// Delegate to topics model
+		if a.topicsModel != nil {
+			var cmd tea.Cmd
+			*a.topicsModel, cmd = a.topicsModel.Update(msg)
+			return a, cmd
+		}
 		return a, nil
 	case ViewDebug:
-		// Debug view will handle: r (refresh)
+		// Delegate to debug model
+		if a.debugModel != nil {
+			var cmd tea.Cmd
+			*a.debugModel, cmd = a.debugModel.Update(msg)
+			return a, cmd
+		}
 		return a, nil
 	}
 	return a, nil
@@ -448,11 +707,29 @@ func (a App) updateCurrentView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // handleNewConversation creates a new conversation.
 func (a App) handleNewConversation() (tea.Model, tea.Cmd) {
-	// This will be implemented to create a new conversation via the RLM engine
-	// For now, just switch to chat view
+	Log("handleNewConversation: rlm=%v current convID=%q", a.rlm != nil, a.convID)
+
+	if a.rlm == nil {
+		Log("handleNewConversation: no RLM engine")
+		return a, nil
+	}
+
 	a.view = ViewChat
-	a.convID = "" // Will be set when conversation is actually created
-	return a, nil
+
+	// Create new conversation asynchronously
+	return a, func() tea.Msg {
+		ctx := context.Background()
+		conv, err := a.rlm.NewConversation(ctx, "New Chat", "")
+		if err != nil {
+			Log("handleNewConversation: error creating conversation: %v", err)
+			return errMsg{err: err}
+		}
+		Log("handleNewConversation: created conversation %q", conv.ID)
+		return ConversationCreatedMsg{
+			ConvID: conv.ID,
+			Title:  conv.Title,
+		}
+	}
 }
 
 // SetConversation sets the current conversation ID.
@@ -480,6 +757,55 @@ func (a *App) RLM() *rlm.RLM {
 	return a.rlm
 }
 
+// SetTracker sets the topic tracker.
+func (a *App) SetTracker(tracker *topic.TopicTracker) {
+	a.tracker = tracker
+}
+
+// SetArchiver sets the topic archiver.
+func (a *App) SetArchiver(archiver *rlm.Archiver) {
+	a.archiver = archiver
+	// Also set on chat model for restore detection
+	if a.chatModel != nil {
+		a.chatModel.SetArchiver(archiver)
+	}
+}
+
+// Tracker returns the topic tracker.
+func (a *App) Tracker() *topic.TopicTracker {
+	return a.tracker
+}
+
+// Archiver returns the topic archiver.
+func (a *App) Archiver() *rlm.Archiver {
+	return a.archiver
+}
+
+// SetContextManager sets the context manager.
+func (a *App) SetContextManager(mgr *rlm.ContextManager) {
+	a.contextMgr = mgr
+	if a.debugModel != nil {
+		a.debugModel = NewDebugModel(mgr, a.tracker, a.convID, a.width-4, a.height-6)
+	}
+}
+
+// ContextManager returns the context manager.
+func (a *App) ContextManager() *rlm.ContextManager {
+	return a.contextMgr
+}
+
+// DebugModel returns the debug model.
+func (a *App) DebugModel() *DebugModel {
+	return a.debugModel
+}
+
+// AddArchiveEvent adds an archive event to the debug model's history.
+func (a *App) AddArchiveEvent(topicName string, tokens int, isRestore bool) {
+	if a.debugModel != nil {
+		a.debugModel.AddArchiveEvent(topicName, tokens, isRestore)
+	}
+}
+
 // --- Message types ---
 
 // errMsg is a message indicating an error occurred.
@@ -501,4 +827,18 @@ func truncate(s string, length int) string {
 		return s[:length]
 	}
 	return s[:length-3] + "..."
+}
+
+// loadChatMessages loads messages for the current conversation into the chat model.
+func (a *App) loadChatMessages() tea.Cmd {
+	return func() tea.Msg {
+		if a.convID == "" || a.rlm == nil || a.chatModel == nil {
+			return nil
+		}
+		ctx := context.Background()
+		if err := a.chatModel.LoadMessages(ctx); err != nil {
+			return errMsg{err: err}
+		}
+		return nil
+	}
 }

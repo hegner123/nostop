@@ -35,6 +35,10 @@ type Config struct {
 
 	// DBPath is the path to the SQLite database.
 	DBPath string
+
+	// CacheStrategy defines how to cache API requests for cost optimization.
+	// If nil, uses DefaultCacheStrategy() with caching enabled.
+	CacheStrategy *CacheStrategy
 }
 
 // DefaultConfig returns a Config with sensible defaults.
@@ -50,14 +54,16 @@ func DefaultConfig() Config {
 
 // RLM is the main orchestrator for the topic-based context archival system.
 type RLM struct {
-	client   *api.Client
-	storage  *storage.SQLite
-	detector *topic.TopicDetector
-	tracker  *topic.TopicTracker
-	scorer   *topic.TopicScorer
-	context  *ContextManager
-	archiver *Archiver
-	config   Config
+	client        *api.Client
+	storage       *storage.SQLite
+	detector      *topic.TopicDetector
+	tracker       *topic.TopicTracker
+	scorer        *topic.TopicScorer
+	context       *ContextManager
+	archiver      *Archiver
+	config        Config
+	cacheStrategy CacheStrategy
+	cacheStats    *CacheStats
 
 	mu sync.RWMutex
 }
@@ -81,6 +87,10 @@ type Response struct {
 
 	// MessageID is the ID of the stored assistant message.
 	MessageID string `json:"message_id"`
+
+	// CacheStats contains cache usage information for this request.
+	// This is populated when caching is enabled.
+	CacheStats *CacheStats `json:"cache_stats,omitempty"`
 }
 
 // Conversation is an alias for storage.Conversation for public API exposure.
@@ -139,15 +149,25 @@ func New(cfg Config) (*RLM, error) {
 	// Initialize archiver
 	archiver := NewArchiver(store, tracker)
 
+	// Initialize cache strategy
+	var cacheStrategy CacheStrategy
+	if cfg.CacheStrategy != nil {
+		cacheStrategy = *cfg.CacheStrategy
+	} else {
+		cacheStrategy = DefaultCacheStrategy()
+	}
+
 	return &RLM{
-		client:   client,
-		storage:  store,
-		detector: detector,
-		tracker:  tracker,
-		scorer:   scorer,
-		context:  ctxMgr,
-		archiver: archiver,
-		config:   cfg,
+		client:        client,
+		storage:       store,
+		detector:      detector,
+		tracker:       tracker,
+		scorer:        scorer,
+		context:       ctxMgr,
+		archiver:      archiver,
+		config:        cfg,
+		cacheStrategy: cacheStrategy,
+		cacheStats:    NewCacheStats(),
 	}, nil
 }
 
@@ -249,16 +269,20 @@ func (r *RLM) Send(ctx context.Context, convID, message string) (*Response, erro
 		Messages:  messages,
 	}
 
-	// Add system prompt if present
+	// Add system prompt with cache control if present
 	if conv.SystemPrompt != "" {
-		sysParam := api.NewSystemString(conv.SystemPrompt)
-		req.System = &sysParam
+		req.System = r.cacheStrategy.ApplyToSystemPrompt(conv.SystemPrompt)
 	}
 
 	resp, err := r.client.Send(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
+
+	// Track cache statistics
+	requestCacheStats := NewCacheStats()
+	requestCacheStats.Update(resp.Usage)
+	r.cacheStats.Update(resp.Usage)
 
 	// Extract response text
 	responseText := resp.GetText()
@@ -281,6 +305,7 @@ func (r *RLM) Send(ctx context.Context, convID, message string) (*Response, erro
 		Archived:   archived,
 		Usage:      resp.Usage,
 		MessageID:  assistantMsg.ID,
+		CacheStats: requestCacheStats,
 	}, nil
 }
 
@@ -360,9 +385,9 @@ func (r *RLM) SendStream(ctx context.Context, convID, message string, callback a
 		Messages:  messages,
 	}
 
+	// Add system prompt with cache control if present
 	if conv.SystemPrompt != "" {
-		sysParam := api.NewSystemString(conv.SystemPrompt)
-		req.System = &sysParam
+		req.System = r.cacheStrategy.ApplyToSystemPrompt(conv.SystemPrompt)
 	}
 
 	// Send streaming request
@@ -370,6 +395,9 @@ func (r *RLM) SendStream(ctx context.Context, convID, message string, callback a
 	if err != nil {
 		return fmt.Errorf("failed to stream: %w", err)
 	}
+
+	// Track cache statistics
+	r.cacheStats.Update(resp.Usage)
 
 	// Store assistant response
 	responseText := resp.GetText()
@@ -571,6 +599,41 @@ func (r *RLM) Storage() *storage.SQLite {
 // Config returns the current configuration.
 func (r *RLM) Config() Config {
 	return r.config
+}
+
+// CacheStrategy returns the current cache strategy.
+func (r *RLM) CacheStrategy() CacheStrategy {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.cacheStrategy
+}
+
+// SetCacheStrategy updates the cache strategy.
+func (r *RLM) SetCacheStrategy(strategy CacheStrategy) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.cacheStrategy = strategy
+}
+
+// CacheStats returns a copy of the cumulative cache statistics.
+func (r *RLM) CacheStats() *CacheStats {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.cacheStats.Clone()
+}
+
+// ResetCacheStats resets the cumulative cache statistics.
+func (r *RLM) ResetCacheStats() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.cacheStats.Reset()
+}
+
+// CacheDebugInfo returns debug information about caching for display.
+func (r *RLM) CacheDebugInfo() *CacheDebugInfo {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return NewCacheDebugInfo(r.cacheStrategy, r.cacheStats.Clone())
 }
 
 // --- Internal helpers ---

@@ -1,0 +1,50 @@
+# RLM Configuration File
+# Copy this file to rlm.toml and customize as needed
+#
+# Config file search order:
+#   1. ./rlm.toml (current directory)
+#   2. ~/.config/rlm/config.toml (XDG)
+#   3. ~/.rlm.toml (home directory)
+
+[api]
+# API key for Anthropic Claude API
+# Can also be set via ANTHROPIC_API_KEY environment variable (recommended)
+# key = "sk-ant-api03-..."
+
+# Optional API base URL override (for proxies or custom endpoints)
+# base_url = "https://api.anthropic.com"
+
+# Request timeout in seconds
+timeout = 120
+
+[context]
+# Maximum context tokens (model limit)
+max_tokens = 200000
+
+# Archive threshold - triggers archival when context usage exceeds this percentage
+# When your conversation reaches 95% of max_tokens, RLM will archive older topics
+archive_threshold = 0.95
+
+# Archive target - archive until context usage drops to this percentage
+# RLM archives topics until usage drops to 50%, giving you room to continue
+archive_target = 0.50
+
+[models]
+# Model for chat responses (main conversation)
+chat = "claude-sonnet-4-20250514"
+
+# Model for topic detection (should be fast/cheap)
+# Used to identify conversation topics for intelligent archival
+detection = "claude-3-5-haiku-latest"
+
+[database]
+# Path to SQLite database for storing archived topics
+# Can also be set via RLM_DB_PATH environment variable
+path = "~/.local/share/rlm/rlm.db"
+
+[ui]
+# UI theme: "dark" or "light"
+theme = "dark"
+
+# Enable auto-refresh in debug view
+auto_refresh = true

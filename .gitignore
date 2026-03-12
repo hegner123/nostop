@@ -40,3 +40,6 @@ vendor/
 # Environment
 .env
 .env.local
+
+# RLM config (contains API keys)
+rlm.toml

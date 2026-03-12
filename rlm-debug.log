@@ -1,0 +1,959 @@
+
+════════════════════════════════════════════════════════════
+=== RLM Debug Session Started at 2026-01-19 13:31:02 ===
+════════════════════════════════════════════════════════════
+[13:31:02.966] RLM starting - version=dev commit=unknown
+[13:31:02.992] App.Init called - chatModel=false, rlm=true
+[13:31:03.013] App.View called: ready=false quitting=false view=Chat chatModel=false
+[13:31:03.034] App.View: not ready yet
+[13:31:03.056] WindowSizeMsg: width=191 height=49 chatModel=false
+[13:31:03.077] Initializing chatModel: rlm=true width=187 contentHeight=43
+[13:31:03.098] chatModel initialized: true
+[13:31:03.119] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:03.145] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:03.167] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:03.676] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:04.206] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:04.737] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:04.760] KeyMsg: key="t" view=Chat chatModel=true
+[13:31:04.781] ChatModel.Update KeyMsg: key="t" type=runes streaming=false convID=""
+[13:31:04.802] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:04.825] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:04.932] KeyMsg: key="e" view=Chat chatModel=true
+[13:31:04.953] ChatModel.Update KeyMsg: key="e" type=runes streaming=false convID=""
+[13:31:04.974] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:04.996] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:05.080] KeyMsg: key="s" view=Chat chatModel=true
+[13:31:05.102] ChatModel.Update KeyMsg: key="s" type=runes streaming=false convID=""
+[13:31:05.123] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:05.146] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:05.345] KeyMsg: key="t" view=Chat chatModel=true
+[13:31:05.366] ChatModel.Update KeyMsg: key="t" type=runes streaming=false convID=""
+[13:31:05.388] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:05.414] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:05.801] KeyMsg: key="enter" view=Chat chatModel=true
+[13:31:05.822] ChatModel.Update KeyMsg: key="enter" type=enter streaming=false convID=""
+[13:31:05.843] ChatModel: Enter pressed, Alt=false
+[13:31:05.864] ChatModel: calling handleSendMessage
+[13:31:05.885] handleSendMessage: content="test" convID="" archiver=false rlm=true
+[13:31:05.906] handleSendMessage: no conversation ID - creating new conversation
+[13:31:05.927] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:05.948] createConversationAndSend: creating conversation
+[13:31:05.968] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:05.989] createConversationAndSend: created "ee1dfda9-3108-4661-85d1-c7e7dcd8a96d", will send message
+[13:31:06.010] conversationCreatedWithContentMsg: convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d" content="test"
+[13:31:06.031] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:06.052] streamResponse: starting stream for convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d" message="test"
+[13:31:06.073] streamResponse: calling RLM.SendStream
+[13:31:06.094] StreamStartMsg received - starting streaming
+[13:31:06.115] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:06.480] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:07.011] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:07.541] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:08.072] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:08.603] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:08.771] waitForStreamMsg: received tui.StreamChunkMsg
+[13:31:08.793] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:09.096] waitForStreamMsg: received tui.StreamChunkMsg
+[13:31:09.118] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:09.139] waitForStreamMsg: received tui.StreamChunkMsg
+[13:31:09.160] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:09.183] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:09.204] waitForStreamMsg: received tui.StreamChunkMsg
+[13:31:09.225] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:09.246] waitForStreamMsg: received tui.StreamChunkMsg
+[13:31:09.269] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:09.290] waitForStreamMsg: received tui.StreamChunkMsg
+[13:31:09.312] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:09.332] waitForStreamMsg: received tui.StreamChunkMsg
+[13:31:09.353] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:09.374] waitForStreamMsg: received tui.StreamChunkMsg
+[13:31:09.397] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:09.419] waitForStreamMsg: received tui.StreamChunkMsg
+[13:31:09.441] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:09.461] waitForStreamMsg: received tui.StreamChunkMsg
+[13:31:09.482] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:09.514] streamResponse: stream complete, content length=142
+[13:31:09.535] waitForStreamMsg: received tui.StreamDoneMsg
+[13:31:09.556] StreamDoneMsg received - streaming complete
+[13:31:09.577] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:09.672] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:10.202] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:10.734] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:11.264] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:11.795] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:12.326] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:12.856] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:13.387] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:13.918] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:14.448] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:14.979] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:15.509] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:15.968] KeyMsg: key="t" view=Chat chatModel=true
+[13:31:15.989] ChatModel.Update KeyMsg: key="t" type=runes streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:31:16.010] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:16.032] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:16.055] KeyMsg: key="h" view=Chat chatModel=true
+[13:31:16.075] ChatModel.Update KeyMsg: key="h" type=runes streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:31:16.096] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:16.119] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:16.141] KeyMsg: key="i" view=Chat chatModel=true
+[13:31:16.162] ChatModel.Update KeyMsg: key="i" type=runes streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:31:16.183] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:16.206] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:16.229] KeyMsg: key="s" view=Chat chatModel=true
+[13:31:16.250] ChatModel.Update KeyMsg: key="s" type=runes streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:31:16.271] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:16.294] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:16.327] KeyMsg: key=" " view=Chat chatModel=true
+[13:31:16.348] ChatModel.Update KeyMsg: key=" " type=  streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:31:16.369] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:16.392] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:16.522] KeyMsg: key="i" view=Chat chatModel=true
+[13:31:16.543] ChatModel.Update KeyMsg: key="i" type=runes streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:31:16.564] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:16.586] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:16.656] KeyMsg: key="s" view=Chat chatModel=true
+[13:31:16.677] ChatModel.Update KeyMsg: key="s" type=runes streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:31:16.698] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:16.723] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:16.745] KeyMsg: key=" " view=Chat chatModel=true
+[13:31:16.766] ChatModel.Update KeyMsg: key=" " type=  streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:31:16.787] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:16.809] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:16.968] KeyMsg: key="v" view=Chat chatModel=true
+[13:31:16.990] ChatModel.Update KeyMsg: key="v" type=runes streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:31:17.011] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:17.034] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:17.177] KeyMsg: key="e" view=Chat chatModel=true
+[13:31:17.199] ChatModel.Update KeyMsg: key="e" type=runes streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:31:17.219] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:17.244] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:17.269] KeyMsg: key="r" view=Chat chatModel=true
+[13:31:17.289] ChatModel.Update KeyMsg: key="r" type=runes streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:31:17.311] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:17.335] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:17.518] KeyMsg: key="y" view=Chat chatModel=true
+[13:31:17.539] ChatModel.Update KeyMsg: key="y" type=runes streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:31:17.560] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:17.582] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:17.668] KeyMsg: key=" " view=Chat chatModel=true
+[13:31:17.688] ChatModel.Update KeyMsg: key=" " type=  streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:31:17.712] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:17.737] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:18.107] KeyMsg: key="c" view=Chat chatModel=true
+[13:31:18.127] ChatModel.Update KeyMsg: key="c" type=runes streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:31:18.148] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:18.171] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:18.235] KeyMsg: key="o" view=Chat chatModel=true
+[13:31:18.255] ChatModel.Update KeyMsg: key="o" type=runes streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:31:18.277] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:18.299] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:18.362] KeyMsg: key="o" view=Chat chatModel=true
+[13:31:18.382] ChatModel.Update KeyMsg: key="o" type=runes streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:31:18.403] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:18.445] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:18.594] KeyMsg: key="l" view=Chat chatModel=true
+[13:31:18.616] ChatModel.Update KeyMsg: key="l" type=runes streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:31:18.637] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:18.659] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:18.977] KeyMsg: key="enter" view=Chat chatModel=true
+[13:31:18.999] ChatModel.Update KeyMsg: key="enter" type=enter streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:31:19.020] ChatModel: Enter pressed, Alt=false
+[13:31:19.040] ChatModel: calling handleSendMessage
+[13:31:19.061] handleSendMessage: content="this is very cool" convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d" archiver=false rlm=true
+[13:31:19.083] handleSendMessage: input cleared, checking for archived topics
+[13:31:19.105] handleSendMessage: sending directly
+[13:31:19.126] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:19.147] streamResponse: starting stream for convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d" message="this is very cool"
+[13:31:19.167] StreamStartMsg received - starting streaming
+[13:31:19.189] streamResponse: calling RLM.SendStream
+[13:31:19.210] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:19.232] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:19.762] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:20.293] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:20.823] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:21.353] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:21.884] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:22.414] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:22.569] waitForStreamMsg: received tui.StreamChunkMsg
+[13:31:22.591] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:22.656] waitForStreamMsg: received tui.StreamChunkMsg
+[13:31:22.677] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:22.945] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:23.158] waitForStreamMsg: received tui.StreamChunkMsg
+[13:31:23.181] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:23.202] waitForStreamMsg: received tui.StreamChunkMsg
+[13:31:23.223] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:23.244] waitForStreamMsg: received tui.StreamChunkMsg
+[13:31:23.265] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:23.286] waitForStreamMsg: received tui.StreamChunkMsg
+[13:31:23.307] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:23.328] waitForStreamMsg: received tui.StreamChunkMsg
+[13:31:23.349] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:23.370] waitForStreamMsg: received tui.StreamChunkMsg
+[13:31:23.391] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:23.412] waitForStreamMsg: received tui.StreamChunkMsg
+[13:31:23.433] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:23.454] waitForStreamMsg: received tui.StreamChunkMsg
+[13:31:23.475] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:23.496] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:23.517] waitForStreamMsg: received tui.StreamChunkMsg
+[13:31:23.538] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:23.559] waitForStreamMsg: received tui.StreamChunkMsg
+[13:31:23.580] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:23.602] waitForStreamMsg: received tui.StreamChunkMsg
+[13:31:23.623] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:23.646] waitForStreamMsg: received tui.StreamChunkMsg
+[13:31:23.667] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:23.688] waitForStreamMsg: received tui.StreamChunkMsg
+[13:31:23.709] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:23.789] waitForStreamMsg: received tui.StreamChunkMsg
+[13:31:23.811] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:23.832] waitForStreamMsg: received tui.StreamChunkMsg
+[13:31:23.856] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:23.876] waitForStreamMsg: received tui.StreamChunkMsg
+[13:31:23.898] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:23.918] waitForStreamMsg: received tui.StreamChunkMsg
+[13:31:23.940] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:23.960] waitForStreamMsg: received tui.StreamChunkMsg
+[13:31:23.982] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:24.002] waitForStreamMsg: received tui.StreamChunkMsg
+[13:31:24.023] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:24.046] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:24.066] waitForStreamMsg: received tui.StreamChunkMsg
+[13:31:24.087] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:24.109] waitForStreamMsg: received tui.StreamChunkMsg
+[13:31:24.130] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:24.150] waitForStreamMsg: received tui.StreamChunkMsg
+[13:31:24.176] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:24.198] waitForStreamMsg: received tui.StreamChunkMsg
+[13:31:24.218] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:24.302] streamResponse: stream complete, content length=286
+[13:31:24.324] waitForStreamMsg: received tui.StreamDoneMsg
+[13:31:24.345] StreamDoneMsg received - streaming complete
+[13:31:24.366] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:24.538] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:25.069] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:25.599] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:26.130] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:26.660] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:27.190] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:27.721] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:28.252] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:28.783] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:29.313] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:29.844] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:30.374] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:30.904] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:31.435] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:31.966] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:32.497] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:33.027] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:33.557] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:34.088] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:34.619] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:31:35.045] KeyMsg: key="ctrl+h" view=Chat chatModel=true
+[13:31:35.066] App.View called: ready=true quitting=false view=History chatModel=true
+[13:31:35.088] App.View called: ready=true quitting=false view=History chatModel=true
+[13:31:35.149] App.View called: ready=true quitting=false view=History chatModel=true
+[13:31:37.166] KeyMsg: key="down" view=History chatModel=true
+[13:31:37.188] App.View called: ready=true quitting=false view=History chatModel=true
+[13:31:38.102] KeyMsg: key="up" view=History chatModel=true
+[13:31:38.124] App.View called: ready=true quitting=false view=History chatModel=true
+[13:31:40.225] KeyMsg: key="down" view=History chatModel=true
+[13:31:40.250] App.View called: ready=true quitting=false view=History chatModel=true
+[13:31:41.496] KeyMsg: key="up" view=History chatModel=true
+[13:31:41.518] App.View called: ready=true quitting=false view=History chatModel=true
+[13:31:43.795] KeyMsg: key="down" view=History chatModel=true
+[13:31:43.817] App.View called: ready=true quitting=false view=History chatModel=true
+[13:31:47.766] KeyMsg: key="ctrl+t" view=History chatModel=true
+[13:31:47.787] App.View called: ready=true quitting=false view=Topics chatModel=true
+[13:31:54.615] KeyMsg: key="right" view=Topics chatModel=true
+[13:31:54.638] App.View called: ready=true quitting=false view=Topics chatModel=true
+[13:31:59.212] KeyMsg: key="ctrl+d" view=Topics chatModel=true
+[13:31:59.235] App.View called: ready=true quitting=false view=Debug chatModel=true
+[13:32:03.308] KeyMsg: key="ctrl+d" view=Debug chatModel=true
+[13:32:03.331] App.View called: ready=true quitting=false view=Debug chatModel=true
+[13:32:05.054] KeyMsg: key="down" view=Debug chatModel=true
+[13:32:05.076] App.View called: ready=true quitting=false view=Debug chatModel=true
+[13:32:05.583] KeyMsg: key="down" view=Debug chatModel=true
+[13:32:05.605] App.View called: ready=true quitting=false view=Debug chatModel=true
+[13:32:06.087] KeyMsg: key="up" view=Debug chatModel=true
+[13:32:06.108] App.View called: ready=true quitting=false view=Debug chatModel=true
+[13:32:06.533] KeyMsg: key="up" view=Debug chatModel=true
+[13:32:06.565] App.View called: ready=true quitting=false view=Debug chatModel=true
+[13:32:07.129] KeyMsg: key="down" view=Debug chatModel=true
+[13:32:07.151] App.View called: ready=true quitting=false view=Debug chatModel=true
+[13:32:07.532] KeyMsg: key="down" view=Debug chatModel=true
+[13:32:07.553] App.View called: ready=true quitting=false view=Debug chatModel=true
+[13:32:08.015] KeyMsg: key="down" view=Debug chatModel=true
+[13:32:08.037] App.View called: ready=true quitting=false view=Debug chatModel=true
+[13:32:08.488] KeyMsg: key="down" view=Debug chatModel=true
+[13:32:08.509] App.View called: ready=true quitting=false view=Debug chatModel=true
+[13:32:08.936] KeyMsg: key="down" view=Debug chatModel=true
+[13:32:08.958] App.View called: ready=true quitting=false view=Debug chatModel=true
+[13:32:09.504] KeyMsg: key="down" view=Debug chatModel=true
+[13:32:09.525] App.View called: ready=true quitting=false view=Debug chatModel=true
+[13:32:11.847] KeyMsg: key="down" view=Debug chatModel=true
+[13:32:11.870] App.View called: ready=true quitting=false view=Debug chatModel=true
+[13:32:12.436] KeyMsg: key="down" view=Debug chatModel=true
+[13:32:12.458] App.View called: ready=true quitting=false view=Debug chatModel=true
+[13:32:13.194] KeyMsg: key="down" view=Debug chatModel=true
+[13:32:13.216] App.View called: ready=true quitting=false view=Debug chatModel=true
+[13:32:14.014] KeyMsg: key="up" view=Debug chatModel=true
+[13:32:14.035] App.View called: ready=true quitting=false view=Debug chatModel=true
+[13:32:14.523] KeyMsg: key="up" view=Debug chatModel=true
+[13:32:14.544] App.View called: ready=true quitting=false view=Debug chatModel=true
+[13:32:15.381] KeyMsg: key="down" view=Debug chatModel=true
+[13:32:15.403] App.View called: ready=true quitting=false view=Debug chatModel=true
+[13:32:15.940] KeyMsg: key="down" view=Debug chatModel=true
+[13:32:15.961] App.View called: ready=true quitting=false view=Debug chatModel=true
+[13:32:23.724] KeyMsg: key="tab" view=Debug chatModel=true
+[13:32:23.746] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:24.277] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:24.808] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:25.269] KeyMsg: key="tab" view=Chat chatModel=true
+[13:32:25.291] App.View called: ready=true quitting=false view=History chatModel=true
+[13:32:25.339] App.View called: ready=true quitting=false view=History chatModel=true
+[13:32:26.396] KeyMsg: key="tab" view=History chatModel=true
+[13:32:26.417] App.View called: ready=true quitting=false view=Topics chatModel=true
+[13:32:27.583] KeyMsg: key="tab" view=Topics chatModel=true
+[13:32:27.605] App.View called: ready=true quitting=false view=Debug chatModel=true
+[13:32:32.045] KeyMsg: key="shift+tab" view=Debug chatModel=true
+[13:32:32.067] App.View called: ready=true quitting=false view=Topics chatModel=true
+[13:32:32.803] KeyMsg: key="shift+tab" view=Topics chatModel=true
+[13:32:32.824] App.View called: ready=true quitting=false view=History chatModel=true
+[13:32:34.403] KeyMsg: key="shift+tab" view=History chatModel=true
+[13:32:34.424] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:34.955] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:35.486] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:36.017] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:36.547] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:37.078] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:37.608] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:38.138] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:38.669] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:39.199] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:39.730] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:40.260] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:40.790] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:41.321] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:41.851] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:42.382] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:42.912] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:43.443] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:43.974] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:44.505] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:45.036] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:45.086] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:45.219] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:45.241] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:45.263] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:45.286] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:45.308] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:45.330] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:45.352] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:45.374] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:45.397] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:45.420] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:45.441] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:45.463] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:45.485] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:45.507] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:45.529] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:45.552] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:45.573] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:45.596] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:45.619] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:45.642] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:45.666] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:45.688] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:45.709] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:45.736] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:46.126] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:46.403] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:46.536] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:46.569] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:46.636] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:46.658] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:46.853] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:47.189] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:47.719] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:47.937] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:48.036] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:48.059] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:48.081] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:48.103] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:48.126] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:48.152] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:48.175] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:48.198] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:48.221] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:48.244] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:48.267] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:48.289] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:48.311] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:48.334] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:48.356] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:48.378] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:48.400] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:48.422] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:48.444] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:48.466] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:48.488] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:48.703] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:48.736] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:48.758] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:48.780] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:48.802] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:48.823] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:48.847] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:48.870] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:48.892] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:48.914] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:48.936] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:48.969] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:49.378] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:49.909] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:50.439] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:50.637] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:50.703] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:50.725] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:50.747] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:50.769] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:50.793] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:50.816] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:50.838] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:50.860] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:50.883] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:50.906] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:50.929] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:50.952] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:50.974] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:50.996] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:51.018] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:51.040] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:51.063] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:51.086] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:51.253] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:51.319] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:51.342] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:51.364] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:51.387] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:51.410] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:51.432] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:51.454] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:51.476] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:51.498] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:51.521] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:51.543] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:51.565] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:51.588] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:51.612] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:51.635] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:51.658] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:51.681] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:51.703] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:51.725] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:51.749] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:51.771] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:51.793] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:51.815] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:51.838] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:51.860] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:51.882] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:51.904] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:51.926] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:51.948] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:51.970] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:51.992] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.015] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.037] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.059] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.082] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.105] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.127] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.149] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.174] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.196] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.219] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.241] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.263] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.286] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.308] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.331] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.353] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.375] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.401] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.423] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.446] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.468] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.490] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.514] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.536] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.558] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.580] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.604] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.626] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.650] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.672] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.694] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.716] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.742] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.764] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.786] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.808] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.830] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.853] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:52.875] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:53.203] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:53.733] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:54.263] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:54.794] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:55.320] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:55.343] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:55.386] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:55.419] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:55.442] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:55.464] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:55.485] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:55.507] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:55.528] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:55.550] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:55.572] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:55.595] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:55.617] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:55.638] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:55.660] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:55.682] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:55.704] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:55.726] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:55.749] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:55.771] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:55.794] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:55.820] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:55.842] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:55.865] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:55.888] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:55.910] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:55.932] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:55.953] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:55.976] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:55.999] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:56.021] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:56.043] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:56.065] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:56.087] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:56.110] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:56.132] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:56.154] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:56.176] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:56.199] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:56.220] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:56.243] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:56.265] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:56.287] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:56.310] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:56.333] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:56.356] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:56.379] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:56.400] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:56.422] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:56.445] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:56.466] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:56.489] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:56.513] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:56.535] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:56.997] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:57.137] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:57.253] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:57.527] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:58.058] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:58.589] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:59.119] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:32:59.650] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:00.181] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:00.711] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:01.242] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:01.487] KeyMsg: key="c" view=Chat chatModel=true
+[13:33:01.508] ChatModel.Update KeyMsg: key="c" type=runes streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:33:01.529] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:01.552] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:01.604] KeyMsg: key="a" view=Chat chatModel=true
+[13:33:01.625] ChatModel.Update KeyMsg: key="a" type=runes streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:33:01.647] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:01.670] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:01.692] KeyMsg: key="n" view=Chat chatModel=true
+[13:33:01.713] ChatModel.Update KeyMsg: key="n" type=runes streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:33:01.734] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:01.756] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:01.816] KeyMsg: key=" " view=Chat chatModel=true
+[13:33:01.839] ChatModel.Update KeyMsg: key=" " type=  streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:33:01.860] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:01.883] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:01.962] KeyMsg: key="y" view=Chat chatModel=true
+[13:33:01.983] ChatModel.Update KeyMsg: key="y" type=runes streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:33:02.004] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:02.026] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:02.048] KeyMsg: key="o" view=Chat chatModel=true
+[13:33:02.069] ChatModel.Update KeyMsg: key="o" type=runes streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:33:02.107] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:02.129] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:02.154] KeyMsg: key="u" view=Chat chatModel=true
+[13:33:02.175] ChatModel.Update KeyMsg: key="u" type=runes streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:33:02.196] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:02.219] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:02.242] KeyMsg: key=" " view=Chat chatModel=true
+[13:33:02.262] ChatModel.Update KeyMsg: key=" " type=  streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:33:02.284] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:02.306] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:02.464] KeyMsg: key="r" view=Chat chatModel=true
+[13:33:02.486] ChatModel.Update KeyMsg: key="r" type=runes streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:33:02.507] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:02.531] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:02.588] KeyMsg: key="e" view=Chat chatModel=true
+[13:33:02.609] ChatModel.Update KeyMsg: key="e" type=runes streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:33:02.630] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:02.653] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:02.721] KeyMsg: key="a" view=Chat chatModel=true
+[13:33:02.742] ChatModel.Update KeyMsg: key="a" type=runes streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:33:02.762] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:02.785] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:02.875] KeyMsg: key="d" view=Chat chatModel=true
+[13:33:02.897] ChatModel.Update KeyMsg: key="d" type=runes streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:33:02.917] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:02.940] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:03.448] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:03.816] KeyMsg: key="backspace" view=Chat chatModel=true
+[13:33:03.837] ChatModel.Update KeyMsg: key="backspace" type=backspace streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:33:03.864] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:03.886] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:04.233] KeyMsg: key="backspace" view=Chat chatModel=true
+[13:33:04.255] ChatModel.Update KeyMsg: key="backspace" type=backspace streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:33:04.275] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:04.298] KeyMsg: key="backspace" view=Chat chatModel=true
+[13:33:04.318] ChatModel.Update KeyMsg: key="backspace" type=backspace streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:33:04.339] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:04.362] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:04.384] KeyMsg: key="backspace" view=Chat chatModel=true
+[13:33:04.404] ChatModel.Update KeyMsg: key="backspace" type=backspace streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:33:04.425] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:04.447] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:04.469] KeyMsg: key="backspace" view=Chat chatModel=true
+[13:33:04.489] ChatModel.Update KeyMsg: key="backspace" type=backspace streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:33:04.510] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:04.532] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:04.555] KeyMsg: key="backspace" view=Chat chatModel=true
+[13:33:04.576] ChatModel.Update KeyMsg: key="backspace" type=backspace streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:33:04.597] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:04.620] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:04.642] KeyMsg: key="backspace" view=Chat chatModel=true
+[13:33:04.662] ChatModel.Update KeyMsg: key="backspace" type=backspace streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:33:04.684] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:04.706] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:04.728] KeyMsg: key="backspace" view=Chat chatModel=true
+[13:33:04.749] ChatModel.Update KeyMsg: key="backspace" type=backspace streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:33:04.770] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:04.793] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:04.815] KeyMsg: key="backspace" view=Chat chatModel=true
+[13:33:04.835] ChatModel.Update KeyMsg: key="backspace" type=backspace streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:33:04.856] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:04.879] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:04.902] KeyMsg: key="backspace" view=Chat chatModel=true
+[13:33:04.923] ChatModel.Update KeyMsg: key="backspace" type=backspace streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:33:04.944] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:04.967] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:04.989] KeyMsg: key="backspace" view=Chat chatModel=true
+[13:33:05.011] ChatModel.Update KeyMsg: key="backspace" type=backspace streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:33:05.032] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:05.056] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:05.080] KeyMsg: key="backspace" view=Chat chatModel=true
+[13:33:05.100] ChatModel.Update KeyMsg: key="backspace" type=backspace streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:33:05.121] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:05.144] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:05.165] KeyMsg: key="backspace" view=Chat chatModel=true
+[13:33:05.187] ChatModel.Update KeyMsg: key="backspace" type=backspace streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:33:05.207] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:05.231] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:05.253] KeyMsg: key="backspace" view=Chat chatModel=true
+[13:33:05.275] ChatModel.Update KeyMsg: key="backspace" type=backspace streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:33:05.296] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:05.320] KeyMsg: key="backspace" view=Chat chatModel=true
+[13:33:05.340] ChatModel.Update KeyMsg: key="backspace" type=backspace streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:33:05.361] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:05.383] KeyMsg: key="backspace" view=Chat chatModel=true
+[13:33:05.404] ChatModel.Update KeyMsg: key="backspace" type=backspace streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:33:05.425] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:05.448] KeyMsg: key="backspace" view=Chat chatModel=true
+[13:33:05.468] ChatModel.Update KeyMsg: key="backspace" type=backspace streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:33:05.489] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:05.512] KeyMsg: key="backspace" view=Chat chatModel=true
+[13:33:05.532] ChatModel.Update KeyMsg: key="backspace" type=backspace streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:33:05.553] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:05.576] KeyMsg: key="backspace" view=Chat chatModel=true
+[13:33:05.597] ChatModel.Update KeyMsg: key="backspace" type=backspace streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:33:05.617] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:05.640] KeyMsg: key="backspace" view=Chat chatModel=true
+[13:33:05.661] ChatModel.Update KeyMsg: key="backspace" type=backspace streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:33:05.683] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:05.704] KeyMsg: key="backspace" view=Chat chatModel=true
+[13:33:05.725] ChatModel.Update KeyMsg: key="backspace" type=backspace streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:33:05.746] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:05.769] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:05.791] KeyMsg: key="backspace" view=Chat chatModel=true
+[13:33:05.813] ChatModel.Update KeyMsg: key="backspace" type=backspace streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:33:05.833] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:05.856] KeyMsg: key="backspace" view=Chat chatModel=true
+[13:33:05.877] ChatModel.Update KeyMsg: key="backspace" type=backspace streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:33:05.899] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:05.922] KeyMsg: key="backspace" view=Chat chatModel=true
+[13:33:05.944] ChatModel.Update KeyMsg: key="backspace" type=backspace streaming=false convID="ee1dfda9-3108-4661-85d1-c7e7dcd8a96d"
+[13:33:05.966] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:06.299] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:06.829] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:07.360] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:07.890] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:08.420] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:08.951] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:09.481] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:10.011] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:10.542] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:11.072] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:11.603] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:12.133] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:12.664] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:13.194] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:13.725] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:14.255] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:14.785] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:15.316] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:15.846] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:16.376] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:16.906] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:17.437] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:17.967] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:18.498] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:19.028] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:19.559] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:20.090] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:20.621] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:21.151] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:21.682] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:22.212] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:22.742] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:23.273] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:23.804] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:24.335] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:24.865] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:25.395] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:25.927] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:26.457] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:26.988] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:27.519] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:28.049] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:28.579] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:29.110] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:29.640] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:30.171] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:30.702] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:31.232] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:31.762] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:32.292] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:32.823] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:33.353] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:33.884] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:34.414] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:34.945] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:35.476] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:36.007] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:36.537] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:37.068] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:37.598] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:38.129] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:38.659] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:39.190] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:39.721] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:40.252] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:40.782] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:41.313] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:41.843] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:42.375] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:42.905] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:43.436] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:43.966] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:44.497] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:45.028] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:45.559] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:46.089] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:46.619] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:47.150] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:47.680] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:48.211] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:48.742] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:49.273] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:49.803] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:50.334] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:50.864] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:51.394] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:51.925] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:52.456] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:52.987] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:53.518] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:54.048] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:54.579] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:55.109] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:55.652] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:56.183] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:56.713] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:57.244] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:57.775] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:58.306] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:58.837] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:59.367] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:33:59.898] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:00.428] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:00.959] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:01.489] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:02.020] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:02.550] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:03.081] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:03.612] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:04.142] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:04.673] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:05.204] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:05.734] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:06.264] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:06.795] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:07.326] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:07.856] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:08.386] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:08.916] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:09.447] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:09.978] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:10.509] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:11.040] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:11.571] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:12.101] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:12.631] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:13.162] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:13.692] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:14.224] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:14.755] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:15.285] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:15.815] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:16.346] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:16.877] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:17.408] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:17.939] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:18.469] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:18.999] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:19.530] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:20.061] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:20.592] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:21.123] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:21.654] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:22.184] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:22.714] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:23.245] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:23.777] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:24.308] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:24.838] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:25.369] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:25.899] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:26.430] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:26.961] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:27.492] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:28.022] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:28.553] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:29.083] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:29.614] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:30.144] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:30.675] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:31.205] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:31.735] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:32.266] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:32.796] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:33.327] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:33.858] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:34.388] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:34.919] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:35.449] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:35.980] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:36.510] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:37.041] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:37.572] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:38.103] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:38.633] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:39.164] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:39.694] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:40.225] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:40.756] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:41.287] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:41.817] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:42.347] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:42.878] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:43.408] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:43.939] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:44.470] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:45.000] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:45.530] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:46.061] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:46.592] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:47.122] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:47.653] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:48.184] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:48.714] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:49.245] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:49.776] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:50.351] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:50.881] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:51.412] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:51.943] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:52.474] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:53.005] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:53.535] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:54.065] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:54.596] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:55.127] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:55.657] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:56.187] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:56.718] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:57.248] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:57.778] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:58.309] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:58.840] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:59.371] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:34:59.901] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:35:00.432] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:35:00.963] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:35:01.494] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:35:02.024] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:35:02.555] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:35:03.086] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:35:03.616] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:35:04.147] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:35:04.677] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:35:05.208] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:35:05.739] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:35:06.270] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:35:06.800] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:35:07.331] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:35:07.861] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:35:08.391] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:35:08.922] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:35:09.453] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:35:09.984] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:35:10.514] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:35:11.045] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:35:11.576] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:35:12.106] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:35:12.636] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:35:13.167] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:35:13.698] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:35:14.228] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:35:14.759] App.View called: ready=true quitting=false view=Chat chatModel=true
+[13:35:15.077] KeyMsg: key="ctrl+c" view=Chat chatModel=true
+[13:35:15.099] ctrl+c pressed - quitting (emergency exit)
+[13:35:15.120] App.View called: ready=true quitting=true view=Chat chatModel=true
+[13:35:15.141] App.View called: ready=true quitting=true view=Chat chatModel=true

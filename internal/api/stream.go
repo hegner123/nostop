@@ -323,7 +323,7 @@ func (c *Client) Stream(ctx context.Context, req *Request) (*StreamReader, error
 		if readErr != nil {
 			return nil, fmt.Errorf("read error response: %w", readErr)
 		}
-		return nil, c.parseError(resp.StatusCode, respBody)
+		return nil, c.parseErrorWithHeaders(resp, respBody)
 	}
 
 	// Verify we got an SSE response
