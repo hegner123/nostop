@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/user/rlm/internal/storage"
 	"github.com/user/rlm/internal/topic"
@@ -13,8 +14,8 @@ import (
 
 // Archiver errors.
 var (
-	ErrTopicNotFound    = errors.New("topic not found")
-	ErrTopicNotArchived = errors.New("topic is not archived")
+	ErrTopicNotFound     = errors.New("topic not found")
+	ErrTopicNotArchived  = errors.New("topic is not archived")
 	ErrNoTopicsToArchive = errors.New("no topics available to archive")
 )
 
@@ -292,39 +293,5 @@ func (a *Archiver) FindTopicsToRestore(ctx context.Context, conversationID, user
 
 // containsIgnoreCase checks if s contains substr (case-insensitive).
 func containsIgnoreCase(s, substr string) bool {
-	if len(substr) == 0 {
-		return true
-	}
-	if len(s) < len(substr) {
-		return false
-	}
-
-	// Convert both to lowercase for comparison
-	sLower := toLower(s)
-	substrLower := toLower(substr)
-
-	return contains(sLower, substrLower)
-}
-
-// toLower converts a string to lowercase (simple ASCII implementation).
-func toLower(s string) string {
-	b := make([]byte, len(s))
-	for i := range len(s) {
-		c := s[i]
-		if c >= 'A' && c <= 'Z' {
-			c += 'a' - 'A'
-		}
-		b[i] = c
-	}
-	return string(b)
-}
-
-// contains checks if s contains substr.
-func contains(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
+	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
 }

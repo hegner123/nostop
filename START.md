@@ -50,12 +50,15 @@ rlm/
 
 ## Current Status
 
-Project is in planning phase. See RLM_PLAN.md for full implementation checklist.
+All 20 implementation steps are complete (Phases 1-5). See RLM_PLAN.md for the full checklist.
 
 ## Quick Commands
 
 ```bash
-# Once implemented:
-go run ./cmd/rlm          # Start CLI
-go test ./...             # Run tests
+make build                # Build binary
+make run                  # Build and run
+make test                 # Run tests
+make dev                  # Build with race detector and run
+go run ./cmd/rlm          # Start CLI directly
+go test ./...             # Run tests directly
 ```

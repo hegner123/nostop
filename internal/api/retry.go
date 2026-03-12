@@ -4,11 +4,12 @@ package api
 import (
 	"context"
 	"errors"
+	"io"
 	"math/rand/v2"
 	"net"
 	"net/http"
 	"strconv"
-	"strings"
+	"syscall"
 	"time"
 )
 
@@ -238,34 +239,23 @@ func isRetryableAPIError(err *APIError) bool {
 func isRetryableNetworkError(err error) bool {
 	// Check for timeout
 	var netErr net.Error
-	if errors.As(err, &netErr) {
-		if netErr.Timeout() {
-			return true
-		}
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return true
 	}
 
-	// Check for temporary network errors
-	var tempErr interface{ Temporary() bool }
-	if errors.As(err, &tempErr) {
-		return tempErr.Temporary()
+	// Check for specific retryable error types rather than brittle string matching
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return true
+	}
+	if errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.ECONNRESET) ||
+		errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ENETUNREACH) {
+		return true
 	}
 
-	// Check error message for common network issues
-	errStr := err.Error()
-	networkIssues := []string{
-		"connection refused",
-		"connection reset",
-		"no such host",
-		"network is unreachable",
-		"i/o timeout",
-		"EOF",
-		"broken pipe",
-	}
-
-	for _, issue := range networkIssues {
-		if strings.Contains(strings.ToLower(errStr), strings.ToLower(issue)) {
-			return true
-		}
+	// Check for DNS resolution failures
+	var dnsErr *net.DNSError
+	if errors.As(err, &dnsErr) {
+		return dnsErr.Temporary()
 	}
 
 	return false

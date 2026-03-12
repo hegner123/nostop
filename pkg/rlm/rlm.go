@@ -4,6 +4,7 @@ package rlm
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -66,6 +67,7 @@ type RLM struct {
 	cacheStats    *CacheStats
 
 	mu sync.RWMutex
+	wg sync.WaitGroup // tracks background goroutines (e.g., relevance re-scoring)
 }
 
 // Response is the result of sending a message through the RLM engine.
@@ -248,19 +250,16 @@ func (r *RLM) Send(ctx context.Context, convID, message string) (*Response, erro
 			r.config.MaxContextTokens,
 			r.config.ArchiveTarget,
 		)
-		if err != nil && err != ErrNoTopicsToArchive {
+		if err != nil && !errors.Is(err, ErrNoTopicsToArchive) {
 			return nil, fmt.Errorf("failed to archive topics: %w", err)
 		}
 	}
 
-	// Build context from active topics
+	// Build context from active topics (includes the user message stored above)
 	messages, err := r.BuildContext(ctx, conv)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build context: %w", err)
 	}
-
-	// Add the current user message to the context
-	messages = append(messages, api.NewUserMessage(message))
 
 	// Send to Claude
 	req := &api.Request{
@@ -366,17 +365,16 @@ func (r *RLM) SendStream(ctx context.Context, convID, message string, callback a
 			r.config.MaxContextTokens,
 			r.config.ArchiveTarget,
 		)
-		if err != nil && err != ErrNoTopicsToArchive {
+		if err != nil && !errors.Is(err, ErrNoTopicsToArchive) {
 			return fmt.Errorf("failed to archive topics: %w", err)
 		}
 	}
 
-	// Build context
+	// Build context (includes the user message stored above)
 	messages, err := r.BuildContext(ctx, conv)
 	if err != nil {
 		return fmt.Errorf("failed to build context: %w", err)
 	}
-	messages = append(messages, api.NewUserMessage(message))
 
 	// Prepare request
 	req := &api.Request{
@@ -577,6 +575,10 @@ func (r *RLM) RestoreTopic(ctx context.Context, topicID string) (*storage.Topic,
 
 // Close closes the RLM engine and releases resources.
 func (r *RLM) Close() error {
+	// Wait for background goroutines (e.g., relevance re-scoring) to finish
+	// before closing storage, so they don't write to a closed DB.
+	r.wg.Wait()
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -740,12 +742,19 @@ func (r *RLM) handleTopicShift(ctx context.Context, conv *storage.Conversation, 
 		return nil, fmt.Errorf("failed to set current topic: %w", err)
 	}
 
-	// Re-score old topics based on relevance to new topic
+	// Re-score old topics based on relevance to new topic.
+	// Capture topics and new topic name before launching goroutine to avoid
+	// racing on tracker state after the caller releases the mutex.
+	topicsSnapshot := r.tracker.GetTopics()
+	newTopicName := shift.NewTopicName
+	newTopicID := newTopic.ID
+
+	r.wg.Add(1)
 	go func() {
+		defer r.wg.Done()
 		bgCtx := context.Background()
-		topics := r.tracker.GetTopics()
-		for _, t := range topics {
-			if t.ID == newTopic.ID {
+		for _, t := range topicsSnapshot {
+			if t.ID == newTopicID {
 				continue
 			}
 
@@ -753,12 +762,14 @@ func (r *RLM) handleTopicShift(ctx context.Context, conv *storage.Conversation, 
 				ID:       t.ID,
 				Name:     t.Name,
 				Keywords: t.Keywords,
-			}, shift.NewTopicName)
+			}, newTopicName)
 			if err != nil {
 				continue
 			}
 
+			r.mu.Lock()
 			_ = r.tracker.UpdateRelevance(bgCtx, t.ID, score)
+			r.mu.Unlock()
 		}
 	}()
 

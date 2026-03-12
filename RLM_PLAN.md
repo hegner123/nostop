@@ -288,34 +288,34 @@ func (cm *ContextManager) ShouldArchive() bool {
 ## Implementation Order
 
 ### Phase 1: Core Foundation
-1. [ ] Project structure and go.mod
-2. [ ] API types (`internal/api/types.go`) - Messages, ContentBlocks, etc.
-3. [ ] API client (`internal/api/client.go`) - Messages + token counting
-4. [ ] SSE streaming (`internal/api/stream.go`)
-5. [ ] SQLite storage with schema (`internal/storage/`)
+1. [x] Project structure and go.mod
+2. [x] API types (`internal/api/types.go`) - Messages, ContentBlocks, etc.
+3. [x] API client (`internal/api/client.go`) - Messages + token counting
+4. [x] SSE streaming (`internal/api/stream.go`)
+5. [x] SQLite storage with schema (`internal/storage/`)
 
 ### Phase 2: Topic System
-6. [ ] Topic detector (`internal/topic/detector.go`) - Claude-based detection
-7. [ ] Topic tracker (`internal/topic/tracker.go`) - Allocation management
-8. [ ] Relevance scorer (`internal/topic/scorer.go`) - Claude-based scoring
+6. [x] Topic detector (`internal/topic/detector.go`) - Claude-based detection
+7. [x] Topic tracker (`internal/topic/tracker.go`) - Allocation management
+8. [x] Relevance scorer (`internal/topic/scorer.go`) - Claude-based scoring
 
 ### Phase 3: Context Management
-9. [ ] Context manager (`pkg/rlm/context.go`) - Usage tracking
-10. [ ] Archiver (`pkg/rlm/archiver.go`) - Archive/restore logic
-11. [ ] RLM engine (`pkg/rlm/rlm.go`) - Main orchestrator
+9. [x] Context manager (`pkg/rlm/context.go`) - Usage tracking
+10. [x] Archiver (`pkg/rlm/archiver.go`) - Archive/restore logic
+11. [x] RLM engine (`pkg/rlm/rlm.go`) - Main orchestrator
 
 ### Phase 4: CLI
-12. [ ] Bubbletea app scaffolding (`internal/tui/app.go`)
-13. [ ] Chat view with streaming (`internal/tui/chat.go`)
-14. [ ] History browser (`internal/tui/history.go`)
-15. [ ] Topics view (`internal/tui/topics.go`)
-16. [ ] Debug view (`internal/tui/debug.go`)
+12. [x] Bubbletea app scaffolding (`internal/tui/app.go`)
+13. [x] Chat view with streaming (`internal/tui/chat.go`)
+14. [x] History browser (`internal/tui/history.go`)
+15. [x] Topics view (`internal/tui/topics.go`)
+16. [x] Debug view (`internal/tui/debug.go`)
 
 ### Phase 5: Polish
-17. [ ] Cache control integration (for system prompts)
-18. [ ] Topic restoration UI
-19. [ ] Configuration file support (TOML/JSON)
-20. [ ] Graceful error handling and retries
+17. [x] Cache control integration (for system prompts)
+18. [x] Topic restoration UI
+19. [x] Configuration file support (TOML)
+20. [x] Graceful error handling and retries
 
 ## Key Design Decisions
 

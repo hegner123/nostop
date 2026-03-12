@@ -105,6 +105,9 @@ auto_refresh = false
 }
 
 func TestToRLMConfig(t *testing.T) {
+	// Clear env so it doesn't override the config file value
+	t.Setenv("ANTHROPIC_API_KEY", "")
+
 	fileCfg := FileConfig{
 		API: APIConfig{
 			Key:     "test-key",
