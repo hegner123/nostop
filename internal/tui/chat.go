@@ -114,18 +114,20 @@ func NewChatModel(engine *nostop.Nostop, ctx context.Context, width, height int)
 	ta.CharLimit = 0 // No character limit
 	ta.ShowLineNumbers = false
 
-	// Set textarea dimensions
+	// Set textarea dimensions.
+	// Input style has border (2 cols) + padding (2 cols) = 4 cols decoration.
+	// Width(w-6) is the outer width, so content area = w-6-4 = w-10.
 	inputHeight := 3
-	ta.SetWidth(width - 4)
+	ta.SetWidth(width - 10)
 	ta.SetHeight(inputHeight)
 
 	// Create viewport for message history
 	// Reserve space for input area and some padding
-	vpHeight := height - inputHeight - 8
+	vpHeight := height - inputHeight - 4
 	if vpHeight < 5 {
 		vpHeight = 5
 	}
-	vp := viewport.New(width-4, vpHeight)
+	vp := viewport.New(width-2, vpHeight)
 	vp.SetContent("")
 
 	return ChatModel{
@@ -217,6 +219,29 @@ func (m *ChatModel) Update(msg tea.Msg) (*ChatModel, tea.Cmd) {
 			// Blur the input
 			m.input.Blur()
 			return m, nil
+
+		case tea.KeyPgUp, tea.KeyPgDown, tea.KeyHome, tea.KeyEnd:
+			// Route navigation keys to viewport for scrolling
+			m.viewport, vpCmd = m.viewport.Update(msg)
+			return m, vpCmd
+
+		case tea.KeyUp:
+			// Up at first line of input scrolls viewport; otherwise move cursor
+			if m.input.Line() == 0 {
+				m.viewport, vpCmd = m.viewport.Update(msg)
+				return m, vpCmd
+			}
+			m.input, tiCmd = m.input.Update(msg)
+			return m, tiCmd
+
+		case tea.KeyDown:
+			// Down at last line of input scrolls viewport; otherwise move cursor
+			if m.input.Line() == m.input.LineCount()-1 {
+				m.viewport, vpCmd = m.viewport.Update(msg)
+				return m, vpCmd
+			}
+			m.input, tiCmd = m.input.Update(msg)
+			return m, tiCmd
 
 		default:
 			// Pass other keys to textarea
@@ -427,12 +452,6 @@ func (m ChatModel) View() string {
 		b.WriteString("\n\n")
 	}
 
-	// Show conversation status
-	if m.convID == "" {
-		b.WriteString(m.styles.SystemMessage.Render("Type a message to start a new conversation"))
-		b.WriteString("\n\n")
-	}
-
 	// Show restore notifications
 	if m.notifications != nil && m.notifications.HasNotifications() {
 		b.WriteString(m.notifications.View())
@@ -440,8 +459,7 @@ func (m ChatModel) View() string {
 	}
 
 	// Render message viewport
-	vpStyle := m.styles.Panel.Width(m.width - 6)
-	b.WriteString(vpStyle.Render(m.viewport.View()))
+	b.WriteString(m.viewport.View())
 	b.WriteString("\n\n")
 
 	// Show restore prompt if visible
@@ -457,9 +475,6 @@ func (m ChatModel) View() string {
 	}
 
 	// Render input area
-	inputLabel := m.styles.InputPrompt.Render("> ")
-	b.WriteString(inputLabel)
-	b.WriteString("\n")
 	inputStyle := m.styles.Input.Width(m.width - 6)
 	b.WriteString(inputStyle.Render(m.input.View()))
 
@@ -844,7 +859,7 @@ func formatToolOutput(output string, maxLen int) string {
 		return truncateToolOutput(output, maxLen)
 	}
 
-	// read tool: {"file": "...", "content": "..."}
+	// read: {"file", "content", "total_lines", "from_line", "to_line"}
 	if content, ok := obj["content"].(string); ok {
 		var header string
 		if file, ok := obj["file"].(string); ok {
@@ -853,7 +868,7 @@ func formatToolOutput(output string, maxLen int) string {
 		return truncateToolOutput(header+content, maxLen)
 	}
 
-	// bash tool: {"stdout": "...", "stderr": "...", "exit_code": N}
+	// bash: {"stdout", "stderr", "exit_code"}
 	if _, hasStdout := obj["stdout"]; hasStdout {
 		var b strings.Builder
 		exitCode := 0
@@ -877,7 +892,7 @@ func formatToolOutput(output string, maxLen int) string {
 		return truncateToolOutput(result, maxLen)
 	}
 
-	// write tool: {"file": "...", "bytes_written": N, "status": "ok"}
+	// write: {"file", "bytes_written", "status": "ok"}
 	if status, ok := obj["status"].(string); ok && status == "ok" {
 		if file, ok := obj["file"].(string); ok {
 			bytes := 0
@@ -888,7 +903,7 @@ func formatToolOutput(output string, maxLen int) string {
 		}
 	}
 
-	// stump tool: {"root": ".", "stats": {"dirs": N, "files": N}, ...}
+	// stump: {"root", "stats": {"dirs", "files", "filtered"}, "tree"}
 	if stats, ok := obj["stats"].(map[string]any); ok {
 		root, _ := obj["root"].(string)
 		dirs, _ := stats["dirs"].(float64)
@@ -899,20 +914,36 @@ func formatToolOutput(output string, maxLen int) string {
 		return fmt.Sprintf("%s: %d dirs, %d files", root, int(dirs), int(files))
 	}
 
-	// checkfor/repfor: {"matches": [...]} or {"files_modified": N, ...}
+	// cleanDiff: {"summary": {"files_changed", "insertions", "deletions"}, "files"}
+	if summaryObj, ok := obj["summary"].(map[string]any); ok {
+		if _, hasFChanged := summaryObj["files_changed"]; hasFChanged {
+			fc, _ := summaryObj["files_changed"].(float64)
+			ins, _ := summaryObj["insertions"].(float64)
+			del, _ := summaryObj["deletions"].(float64)
+			return fmt.Sprintf("%d files changed, +%d -%d", int(fc), int(ins), int(del))
+		}
+		// imports: {"summary": {"total_files", "total_imports"}, "files", "packages"}
+		if tf, ok := summaryObj["total_files"].(float64); ok {
+			ti, _ := summaryObj["total_imports"].(float64)
+			return fmt.Sprintf("%d imports across %d files", int(ti), int(tf))
+		}
+	}
+
+	// checkfor: {"matches": [...]}
 	if matches, ok := obj["matches"].([]any); ok {
 		return fmt.Sprintf("%d matches", len(matches))
 	}
+
+	// repfor: {"files_modified", "replacements"}
 	if n, ok := obj["files_modified"].(float64); ok {
 		replacements, _ := obj["replacements"].(float64)
 		return fmt.Sprintf("%d replacements in %d files", int(replacements), int(n))
 	}
 
-	// sig tool: {"file": "...", "functions": [...], "types": [...]}
+	// sig: {"file", "functions", "types", "constants", "variables"}
 	if _, hasFunctions := obj["functions"]; hasFunctions {
 		file, _ := obj["file"].(string)
-		nFuncs := 0
-		nTypes := 0
+		nFuncs, nTypes := 0, 0
 		if fns, ok := obj["functions"].([]any); ok {
 			nFuncs = len(fns)
 		}
@@ -922,14 +953,71 @@ func formatToolOutput(output string, maxLen int) string {
 		return fmt.Sprintf("%s: %d functions, %d types", filepath.Base(file), nFuncs, nTypes)
 	}
 
-	// imports tool: {"files": [...], "summary": {...}}
-	if summary, ok := obj["summary"].(map[string]any); ok {
-		totalFiles, _ := summary["total_files"].(float64)
-		totalImports, _ := summary["total_imports"].(float64)
-		return fmt.Sprintf("%d imports across %d files", int(totalImports), int(totalFiles))
+	// errs: {"errors", "format", "count", "files", "summary"}
+	if count, ok := obj["count"].(float64); ok {
+		if nFiles, ok := obj["files"].(float64); ok {
+			format, _ := obj["format"].(string)
+			if format != "" {
+				return fmt.Sprintf("%d errors in %d files (%s)", int(count), int(nFiles), format)
+			}
+			return fmt.Sprintf("%d errors in %d files", int(count), int(nFiles))
+		}
 	}
 
-	// Generic fallback: truncated raw output
+	// notab: {"file", "replacements", "lines_affected", "direction"}
+	if dir, ok := obj["direction"].(string); ok {
+		file, _ := obj["file"].(string)
+		replacements, _ := obj["replacements"].(float64)
+		lines, _ := obj["lines_affected"].(float64)
+		return fmt.Sprintf("%s: %d replacements on %d lines (%s)", filepath.Base(file), int(replacements), int(lines), dir)
+	}
+
+	// tabcount: {"file", "total_lines", "lines": [...]}
+	if lines, ok := obj["lines"].([]any); ok {
+		if _, hasTotal := obj["total_lines"]; hasTotal {
+			file, _ := obj["file"].(string)
+			total, _ := obj["total_lines"].(float64)
+			return fmt.Sprintf("%s: %d/%d lines with tabs", filepath.Base(file), len(lines), int(total))
+		}
+	}
+
+	// delete: {"original_path", "trash_path", "type", "size"}
+	if trashPath, ok := obj["trash_path"].(string); ok {
+		origPath, _ := obj["original_path"].(string)
+		_ = trashPath
+		return fmt.Sprintf("moved %s to Trash", filepath.Base(origPath))
+	}
+
+	// utf8: {"file", "detected", "issues", "bytes_in", "bytes_out", "status"}
+	if detected, ok := obj["detected"].(string); ok {
+		if _, hasBytes := obj["bytes_in"]; hasBytes {
+			file, _ := obj["file"].(string)
+			status, _ := obj["status"].(string)
+			return fmt.Sprintf("%s: %s (%s)", filepath.Base(file), detected, status)
+		}
+	}
+
+	// conflicts: {"files", "total", "has_diff3", "summary"}
+	if total, ok := obj["total"].(float64); ok {
+		if _, hasHasDiff3 := obj["has_diff3"]; hasHasDiff3 {
+			return fmt.Sprintf("%d conflicts", int(total))
+		}
+	}
+
+	// Generic: any tool with a "summary" string (split, splice, and future tools)
+	if summary, ok := obj["summary"].(string); ok && summary != "" {
+		return truncateToolOutput(summary, maxLen)
+	}
+
+	// Generic: any tool with a "status" string
+	if status, ok := obj["status"].(string); ok {
+		if file, ok := obj["file"].(string); ok {
+			return fmt.Sprintf("%s: %s", filepath.Base(file), status)
+		}
+		return status
+	}
+
+	// Fallback: truncated raw output
 	return truncateToolOutput(output, maxLen)
 }
 
@@ -946,16 +1034,16 @@ func (m *ChatModel) SetSize(width, height int) {
 	m.width = width
 	m.height = height
 
-	// Update textarea
-	m.input.SetWidth(width - 4)
+	// Update textarea — match content area inside Input style decoration
+	m.input.SetWidth(width - 10)
 
 	// Update viewport
 	inputHeight := 3
-	vpHeight := height - inputHeight - 8
+	vpHeight := height - inputHeight - 4
 	if vpHeight < 5 {
 		vpHeight = 5
 	}
-	m.viewport.Width = width - 4
+	m.viewport.Width = width - 2
 	m.viewport.Height = vpHeight
 
 	// Re-render messages for new width

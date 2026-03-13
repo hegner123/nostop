@@ -481,6 +481,41 @@ func (m TopicsModel) wrapInPanel(content string) string {
 		Render(content)
 }
 
+// OverlayUpdate implements ModalOverlay.
+func (m *TopicsModel) OverlayUpdate(msg tea.KeyMsg) (ModalOverlay, tea.Cmd) {
+	if msg.String() == "esc" {
+		// Hide confirm dialog first
+		if m.confirmDialog != nil && m.confirmDialog.IsVisible() {
+			m.confirmDialog.Hide()
+			return m, nil
+		}
+		// Close overlay
+		return nil, nil
+	}
+	updated, cmd := (*m).Update(msg)
+	*m = updated
+	return m, cmd
+}
+
+// OverlayView implements ModalOverlay.
+func (m *TopicsModel) OverlayView(width, height int) string {
+	dlgW := width * 3 / 4
+	dlgH := height * 3 / 4
+	if dlgW < 50 {
+		dlgW = 50
+	}
+	if dlgH < 15 {
+		dlgH = 15
+	}
+
+	contentW := dlgW - 6
+	contentH := dlgH - 4
+	m.SetSize(contentW, contentH)
+
+	style := overlayStyle().Width(dlgW).Height(dlgH)
+	return style.Render(m.View())
+}
+
 // SetSize updates the dimensions of the topics view.
 func (m *TopicsModel) SetSize(width, height int) {
 	m.width = width

@@ -453,6 +453,33 @@ func (d DebugModel) tickCmd() tea.Cmd {
 	})
 }
 
+// OverlayUpdate implements ModalOverlay.
+func (d *DebugModel) OverlayUpdate(msg tea.KeyMsg) (ModalOverlay, tea.Cmd) {
+	if msg.String() == "esc" {
+		return nil, nil
+	}
+	updated, cmd := (*d).Update(msg)
+	*d = updated
+	return d, cmd
+}
+
+// OverlayView implements ModalOverlay.
+func (d *DebugModel) OverlayView(width, height int) string {
+	dlgW := width * 3 / 4
+	dlgH := height * 3 / 4
+	if dlgW < 50 {
+		dlgW = 50
+	}
+	if dlgH < 15 {
+		dlgH = 15
+	}
+
+	d.SetSize(dlgW-6, dlgH-4)
+
+	style := overlayStyle().Width(dlgW).Height(dlgH)
+	return style.Render(d.View())
+}
+
 // SetSize updates the dimensions for the debug view.
 func (d *DebugModel) SetSize(width, height int) {
 	d.width = width

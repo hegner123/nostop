@@ -363,6 +363,48 @@ func (m *HistoryModel) Refresh() tea.Cmd {
 	return m.loadConversations()
 }
 
+// OverlayUpdate implements ModalOverlay.
+func (m *HistoryModel) OverlayUpdate(msg tea.KeyMsg) (ModalOverlay, tea.Cmd) {
+	if msg.String() == "esc" {
+		// Cancel delete confirmation first
+		if m.confirmDelete {
+			m.confirmDelete = false
+			m.deleteTarget = ""
+			return m, nil
+		}
+		// Cancel list filter first
+		if m.list.FilterState() == list.Filtering {
+			var cmd tea.Cmd
+			m.list, cmd = m.list.Update(msg)
+			return m, cmd
+		}
+		// Close overlay
+		return nil, nil
+	}
+	m, cmd := m.Update(msg)
+	return m, cmd
+}
+
+// OverlayView implements ModalOverlay.
+func (m *HistoryModel) OverlayView(width, height int) string {
+	dlgW := width * 3 / 4
+	dlgH := height * 3 / 4
+	if dlgW < 50 {
+		dlgW = 50
+	}
+	if dlgH < 15 {
+		dlgH = 15
+	}
+
+	// Content area inside border (2) + padding (4 horiz, 2 vert)
+	contentW := dlgW - 6
+	contentH := dlgH - 4
+	m.SetSize(contentW, contentH)
+
+	style := overlayStyle().Width(dlgW).Height(dlgH)
+	return style.Render(m.View())
+}
+
 // RenderHelp returns the help text for the history view.
 func (m *HistoryModel) RenderHelp() string {
 	if m.confirmDelete {
