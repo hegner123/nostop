@@ -272,10 +272,14 @@ func (m *ChatModel) Update(msg tea.Msg) (*ChatModel, tea.Cmd) {
 		}
 		m.streaming = false
 
+		toolLabel := msg.Name
+		if target := toolTarget(msg.Input); target != "" {
+			toolLabel = msg.Name + " " + target
+		}
 		m.messages = append(m.messages, ChatMessage{
 			Role:     "tool",
 			ToolName: msg.Name,
-			Content:  fmt.Sprintf("Calling %s...", msg.Name),
+			Content:  fmt.Sprintf("Calling %s...", toolLabel),
 		})
 		m.updateViewport()
 		m.viewport.GotoBottom()
@@ -787,6 +791,44 @@ func (m ChatModel) wrapText(text string, maxWidth int) string {
 	}
 
 	return result.String()
+}
+
+// toolTarget extracts the primary file/directory target from tool input
+// for display purposes. Returns "" if no recognizable target is found.
+func toolTarget(input map[string]any) string {
+	// Priority order: most specific parameter names first.
+	keys := []string{"file_path", "file", "dir", "path", "source", "command", "exec", "query", "input"}
+	for _, key := range keys {
+		v, ok := input[key]
+		if !ok {
+			continue
+		}
+		switch val := v.(type) {
+		case string:
+			if val == "" {
+				continue
+			}
+			// For commands/queries, truncate to keep display compact
+			if key == "command" || key == "input" || key == "query" || key == "exec" {
+				if len(val) > 40 {
+					return val[:37] + "..."
+				}
+			}
+			return val
+		case []any:
+			// Array of paths (checkfor dirs, repfor dirs, conflicts files)
+			if len(val) == 0 {
+				continue
+			}
+			if s, ok := val[0].(string); ok {
+				if len(val) == 1 {
+					return s
+				}
+				return fmt.Sprintf("%s (+%d more)", s, len(val)-1)
+			}
+		}
+	}
+	return ""
 }
 
 // truncateToolOutput truncates tool output for display in the TUI.
