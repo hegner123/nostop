@@ -1139,13 +1139,12 @@ func (r *Nostop) handleTopicShift(ctx context.Context, conv *storage.Conversatio
 	r.wg.Add(1)
 	go func() {
 		defer r.wg.Done()
-		bgCtx := context.Background()
 		for _, t := range topicsSnapshot {
 			if t.ID == newTopicID {
 				continue
 			}
 
-			score, err := r.scorer.ScoreRelevance(bgCtx, topic.Topic{
+			score, err := r.scorer.ScoreRelevance(ctx, topic.Topic{
 				ID:       t.ID,
 				Name:     t.Name,
 				Keywords: t.Keywords,
@@ -1155,7 +1154,7 @@ func (r *Nostop) handleTopicShift(ctx context.Context, conv *storage.Conversatio
 			}
 
 			r.mu.Lock()
-			_ = r.tracker.UpdateRelevance(bgCtx, t.ID, score)
+			_ = r.tracker.UpdateRelevance(ctx, t.ID, score)
 			r.mu.Unlock()
 		}
 	}()

@@ -46,6 +46,13 @@ type ChatModel struct {
 	restorePrompt  *RestorePrompt
 	pendingMessage string // Message waiting for restore decision
 	notifications  *NotificationManager
+
+	// Stream channel — per-model, not global — to avoid cross-talk
+	// when rapid sends overwrite a shared channel.
+	streamCh chan tea.Msg
+
+	// ctx is the cancellable context propagated from the App root.
+	ctx context.Context
 }
 
 // Stream message types for Bubbletea
@@ -96,7 +103,7 @@ type conversationCreatedWithContentMsg struct {
 }
 
 // NewChatModel creates a new ChatModel with the given Nostop engine and dimensions.
-func NewChatModel(engine *nostop.Nostop, width, height int) ChatModel {
+func NewChatModel(engine *nostop.Nostop, ctx context.Context, width, height int) ChatModel {
 	// Create textarea for input
 	ta := textarea.New()
 	ta.Placeholder = "Type your message... (Enter to send, Shift+Enter for newline)"
@@ -120,6 +127,7 @@ func NewChatModel(engine *nostop.Nostop, width, height int) ChatModel {
 
 	return ChatModel{
 		engine:        engine,
+		ctx:           ctx,
 		input:         ta,
 		viewport:      vp,
 		messages:      make([]ChatMessage, 0),
@@ -271,7 +279,7 @@ func (m *ChatModel) Update(msg tea.Msg) (*ChatModel, tea.Cmd) {
 		})
 		m.updateViewport()
 		m.viewport.GotoBottom()
-		return m, waitForStreamMsg
+		return m, m.waitForStream()
 
 	case ToolResultMsg:
 		// Update the last tool message with the result
@@ -284,7 +292,7 @@ func (m *ChatModel) Update(msg tea.Msg) (*ChatModel, tea.Cmd) {
 		}
 		m.updateViewport()
 		m.viewport.GotoBottom()
-		return m, waitForStreamMsg
+		return m, m.waitForStream()
 
 	case StreamStartMsg:
 		Log("StreamStartMsg received - starting streaming")
@@ -298,7 +306,7 @@ func (m *ChatModel) Update(msg tea.Msg) (*ChatModel, tea.Cmd) {
 		})
 		m.updateViewport()
 		// Continue reading from stream channel
-		return m, waitForStreamMsg
+		return m, m.waitForStream()
 
 	case StreamChunkMsg:
 		// If we're not streaming (e.g. tools just finished and a new
@@ -320,7 +328,7 @@ func (m *ChatModel) Update(msg tea.Msg) (*ChatModel, tea.Cmd) {
 			m.viewport.GotoBottom()
 		}
 		// Continue reading from stream channel
-		return m, waitForStreamMsg
+		return m, m.waitForStream()
 
 	case StreamDoneMsg:
 		Log("StreamDoneMsg received - streaming complete")
@@ -499,7 +507,7 @@ func (m *ChatModel) handleSendMessage() (*ChatModel, tea.Cmd) {
 // createConversationAndSend creates a new conversation and sends the first message.
 func (m *ChatModel) createConversationAndSend(content string) tea.Cmd {
 	return func() tea.Msg {
-		ctx := context.Background()
+		ctx := m.ctx
 		Log("createConversationAndSend: creating conversation")
 		conv, err := m.engine.NewConversation(ctx, "New Chat", "")
 		if err != nil {
@@ -523,7 +531,7 @@ func (m ChatModel) checkForArchivedTopics(message string) tea.Cmd {
 			return RestoreCheckResultMsg{Message: message, Topics: nil}
 		}
 
-		ctx := context.Background()
+		ctx := m.ctx
 		topics, err := m.archiver.FindTopicsToRestore(ctx, m.convID, message)
 		if err != nil {
 			// On error, just proceed without restore
@@ -554,8 +562,11 @@ func (m *ChatModel) sendMessageDirectly(content string) (*ChatModel, tea.Cmd) {
 	m.updateViewport()
 	m.viewport.GotoBottom()
 
-	// Start streaming response
-	return m, m.streamResponse(content)
+	// Create a fresh stream channel and start streaming.
+	// Channel is created here (synchronous Update path) so that
+	// waitForStream closures always capture the correct channel.
+	m.streamCh = make(chan tea.Msg, 100)
+	return m, startStream(m.streamCh, m.engine, m.ctx, m.convID, content)
 }
 
 // restoreAndSend restores a topic and then sends the message.
@@ -566,7 +577,7 @@ func (m ChatModel) restoreAndSend(topic *storage.Topic, message string) tea.Cmd 
 			return RestoreCheckResultMsg{Message: message, Topics: nil}
 		}
 
-		ctx := context.Background()
+		ctx := m.ctx
 		restored, err := m.archiver.RestoreTopic(ctx, topic.ID, 0.5, 0.6)
 		if err != nil {
 			return TopicRestoreCompleteMsg{Topic: nil, Error: err}
@@ -593,20 +604,15 @@ type RestoreAndSendMsg struct {
 	Message       string
 }
 
-// streamChan is used to pass streaming events back to the model.
-// This is stored globally to allow the waitForStreamMsg command to read from it.
-var streamChan chan tea.Msg
-
-// streamResponse creates a command that streams the response from the Nostop engine.
-func (m ChatModel) streamResponse(message string) tea.Cmd {
+// startStream creates a command that streams the response from the Nostop engine.
+// The channel and context are captured at call time, so rapid re-invocations
+// write to separate channels — no cross-talk between old and new streams.
+func startStream(ch chan tea.Msg, engine *nostop.Nostop, ctx context.Context, convID, message string) tea.Cmd {
 	return func() tea.Msg {
-		Log("streamResponse: starting stream for convID=%q message=%q", m.convID, message)
-
-		// Create a channel to receive stream events
-		streamChan = make(chan tea.Msg, 100)
+		Log("startStream: starting stream for convID=%q message=%q", convID, message)
 
 		go func() {
-			defer close(streamChan)
+			defer close(ch)
 
 			var finalContent strings.Builder
 
@@ -616,7 +622,7 @@ func (m ChatModel) streamResponse(message string) tea.Cmd {
 				case api.StreamEventContentBlockDelta:
 					if event.Delta != nil && event.Delta.Type == "text_delta" {
 						finalContent.WriteString(event.Delta.Text)
-						streamChan <- StreamChunkMsg{Text: event.Delta.Text}
+						ch <- StreamChunkMsg{Text: event.Delta.Text}
 					}
 				}
 				return nil
@@ -629,13 +635,13 @@ func (m ChatModel) streamResponse(message string) tea.Cmd {
 					// Reset the content builder — intermediate text from
 					// prior iterations is not the final response.
 					finalContent.Reset()
-					streamChan <- ToolCallMsg{
+					ch <- ToolCallMsg{
 						Name:  event.Name,
 						ID:    event.ID,
 						Input: event.Input,
 					}
 				case nostop.ToolEventDone, nostop.ToolEventError:
-					streamChan <- ToolResultMsg{
+					ch <- ToolResultMsg{
 						Name:    event.Name,
 						Output:  event.Output,
 						IsError: event.IsError,
@@ -644,42 +650,46 @@ func (m ChatModel) streamResponse(message string) tea.Cmd {
 			}
 
 			// Call Nostop.SendStream
-			ctx := context.Background()
-			Log("streamResponse: calling Nostop.SendStream")
-			err := m.engine.SendStream(ctx, m.convID, message, callback, toolCallback)
+			Log("startStream: calling Nostop.SendStream")
+			err := engine.SendStream(ctx, convID, message, callback, toolCallback)
 			if err != nil {
-				Log("streamResponse: error from SendStream: %v", err)
-				streamChan <- StreamErrorMsg{Err: err}
+				Log("startStream: error from SendStream: %v", err)
+				ch <- StreamErrorMsg{Err: err}
 				return
 			}
 
 			// Create response object
-			Log("streamResponse: stream complete, content length=%d", finalContent.Len())
+			Log("startStream: stream complete, content length=%d", finalContent.Len())
 			resp := &nostop.Response{
 				Content: finalContent.String(),
 			}
 
-			streamChan <- StreamDoneMsg{Response: resp}
+			ch <- StreamDoneMsg{Response: resp}
 		}()
 
-		// Return StreamStartMsg immediately, then use waitForStreamMsg to get subsequent messages
+		// Return StreamStartMsg immediately, then use waitForStream to get subsequent messages
 		return StreamStartMsg{}
 	}
 }
 
-// waitForStreamMsg waits for the next message from the stream channel.
-func waitForStreamMsg() tea.Msg {
-	if streamChan == nil {
-		Log("waitForStreamMsg: streamChan is nil")
-		return StreamErrorMsg{Err: fmt.Errorf("stream channel not initialized")}
+// waitForStream returns a command that reads the next message from the stream channel.
+// The channel reference is captured at call time, so each invocation reads from
+// the channel that was live when the command was created.
+func (m ChatModel) waitForStream() tea.Cmd {
+	ch := m.streamCh
+	return func() tea.Msg {
+		if ch == nil {
+			Log("waitForStream: streamCh is nil")
+			return StreamErrorMsg{Err: fmt.Errorf("stream channel not initialized")}
+		}
+		msg, ok := <-ch
+		if !ok {
+			Log("waitForStream: channel closed unexpectedly")
+			return StreamErrorMsg{Err: fmt.Errorf("stream channel closed")}
+		}
+		Log("waitForStream: received %T", msg)
+		return msg
 	}
-	msg, ok := <-streamChan
-	if !ok {
-		Log("waitForStreamMsg: channel closed unexpectedly")
-		return StreamErrorMsg{Err: fmt.Errorf("stream channel closed")}
-	}
-	Log("waitForStreamMsg: received %T", msg)
-	return msg
 }
 
 // updateViewport updates the viewport content with rendered messages.

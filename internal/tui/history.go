@@ -14,6 +14,7 @@ import (
 
 // HistoryModel represents the conversation history browser view.
 type HistoryModel struct {
+	ctx           context.Context
 	storage       *storage.SQLite
 	conversations []storage.Conversation
 	messageCounts map[string]int // conversation ID -> message count
@@ -91,7 +92,7 @@ type ConversationDeleteErrorMsg struct {
 }
 
 // NewHistoryModel creates a new HistoryModel instance.
-func NewHistoryModel(store *storage.SQLite, width, height int) *HistoryModel {
+func NewHistoryModel(store *storage.SQLite, ctx context.Context, width, height int) *HistoryModel {
 	// Create delegate for list items
 	delegate := list.NewDefaultDelegate()
 	delegate.ShowDescription = true
@@ -111,6 +112,7 @@ func NewHistoryModel(store *storage.SQLite, width, height int) *HistoryModel {
 	l.Styles.FilterCursor = styles.InputPrompt
 
 	return &HistoryModel{
+		ctx:           ctx,
 		storage:       store,
 		list:          l,
 		width:         width,
@@ -130,7 +132,7 @@ func (m *HistoryModel) Init() tea.Cmd {
 // loadConversations returns a command to load conversations from storage.
 func (m *HistoryModel) loadConversations() tea.Cmd {
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(m.ctx, 5*time.Second)
 		defer cancel()
 
 		conversations, err := m.storage.ListConversations(ctx, 100, 0)
@@ -166,7 +168,7 @@ func (m *HistoryModel) loadConversations() tea.Cmd {
 // deleteConversation returns a command to delete a conversation.
 func (m *HistoryModel) deleteConversation(convID string) tea.Cmd {
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(m.ctx, 5*time.Second)
 		defer cancel()
 
 		err := m.storage.DeleteConversation(ctx, convID)

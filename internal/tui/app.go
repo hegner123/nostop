@@ -74,6 +74,12 @@ type App struct {
 	// engine is the Nostop engine instance.
 	engine *nostop.Nostop
 
+	// ctx is the root cancellable context for the application.
+	ctx context.Context
+
+	// cancel cancels ctx, signaling all in-flight operations to stop.
+	cancel context.CancelFunc
+
 	// view is the currently active view.
 	view View
 
@@ -121,9 +127,14 @@ type App struct {
 }
 
 // NewApp creates a new App instance with the given Nostop engine.
-func NewApp(engine *nostop.Nostop) *App {
+// The provided context is used as the parent for all async operations;
+// cancelling it triggers graceful shutdown of in-flight API calls and DB queries.
+func NewApp(engine *nostop.Nostop, ctx context.Context) *App {
+	appCtx, appCancel := context.WithCancel(ctx)
 	return &App{
 		engine: engine,
+		ctx:    appCtx,
+		cancel: appCancel,
 		view:   ViewChat,
 		styles: DefaultStyles(),
 	}
@@ -152,7 +163,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Initialize or update chat model
 		if a.chatModel == nil {
 			Log("Initializing chatModel: engine=%v width=%d contentHeight=%d", a.engine != nil, msg.Width-4, contentHeight)
-			cm := NewChatModel(a.engine, msg.Width-4, contentHeight)
+			cm := NewChatModel(a.engine, a.ctx, msg.Width-4, contentHeight)
 			a.chatModel = &cm
 			Log("chatModel initialized: %v", a.chatModel != nil)
 			cmds = append(cmds, a.chatModel.Init())
@@ -162,7 +173,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		if a.history == nil && a.engine != nil {
-			a.history = NewHistoryModel(a.engine.Storage(), msg.Width-4, contentHeight)
+			a.history = NewHistoryModel(a.engine.Storage(), a.ctx, msg.Width-4, contentHeight)
 			cmds = append(cmds, a.history.Init())
 		} else if a.history != nil {
 			a.history.SetSize(msg.Width-4, contentHeight)
@@ -170,7 +181,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Initialize or update topics model with new dimensions
 		if a.topicsModel == nil && a.tracker != nil {
-			a.topicsModel = NewTopicsModel(a.tracker, a.archiver, a.convID, msg.Width-4, contentHeight)
+			a.topicsModel = NewTopicsModel(a.tracker, a.archiver, a.convID, a.ctx, msg.Width-4, contentHeight)
 			cmds = append(cmds, a.topicsModel.Init())
 		} else if a.topicsModel != nil {
 			a.topicsModel.SetSize(msg.Width-4, contentHeight)
@@ -178,7 +189,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Initialize or update debug model with new dimensions
 		if a.debugModel == nil {
-			a.debugModel = NewDebugModel(a.contextMgr, a.tracker, a.convID, msg.Width-4, contentHeight)
+			a.debugModel = NewDebugModel(a.contextMgr, a.tracker, a.convID, a.ctx, msg.Width-4, contentHeight)
 			cmds = append(cmds, a.debugModel.Init())
 		} else {
 			a.debugModel.SetSize(msg.Width-4, contentHeight)
@@ -196,6 +207,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.String() == "ctrl+c" {
 			Log("ctrl+c pressed - quitting (emergency exit)")
 			a.quitting = true
+			a.cancel()
 			return a, tea.Quit
 		}
 
@@ -215,6 +227,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return a, nil
 			}
 			a.quitting = true
+			a.cancel()
 			return a, tea.Quit
 
 		case "ctrl+n":
@@ -749,7 +762,7 @@ func (a App) handleNewConversation() (tea.Model, tea.Cmd) {
 
 	// Create new conversation asynchronously
 	return a, func() tea.Msg {
-		ctx := context.Background()
+		ctx := a.ctx
 		conv, err := a.engine.NewConversation(ctx, "New Chat", "")
 		if err != nil {
 			Log("handleNewConversation: error creating conversation: %v", err)
@@ -816,7 +829,7 @@ func (a *App) Archiver() *nostop.Archiver {
 func (a *App) SetContextManager(mgr *nostop.ContextManager) {
 	a.contextMgr = mgr
 	if a.debugModel != nil {
-		a.debugModel = NewDebugModel(mgr, a.tracker, a.convID, a.width-4, a.height-6)
+		a.debugModel = NewDebugModel(mgr, a.tracker, a.convID, a.ctx, a.width-4, a.height-6)
 	}
 }
 
@@ -866,7 +879,7 @@ func (a *App) loadChatMessages() tea.Cmd {
 		if a.convID == "" || a.engine == nil || a.chatModel == nil {
 			return nil
 		}
-		ctx := context.Background()
+		ctx := a.ctx
 		if err := a.chatModel.LoadMessages(ctx); err != nil {
 			return errMsg{err: err}
 		}

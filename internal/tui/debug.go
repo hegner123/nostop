@@ -23,6 +23,7 @@ type ArchiveEvent struct {
 
 // DebugModel is the model for the debug/context info view.
 type DebugModel struct {
+	ctx         context.Context
 	contextMgr  *nostop.ContextManager
 	tracker     *topic.TopicTracker
 	convID      string
@@ -54,8 +55,9 @@ type DebugErrorMsg struct {
 }
 
 // NewDebugModel creates a new DebugModel instance.
-func NewDebugModel(contextMgr *nostop.ContextManager, tracker *topic.TopicTracker, convID string, width, height int) *DebugModel {
+func NewDebugModel(contextMgr *nostop.ContextManager, tracker *topic.TopicTracker, convID string, ctx context.Context, width, height int) *DebugModel {
 	return &DebugModel{
+		ctx:         ctx,
 		contextMgr:  contextMgr,
 		tracker:     tracker,
 		convID:      convID,
@@ -429,7 +431,7 @@ func (d DebugModel) refreshCmd() tea.Cmd {
 		// Reload topics from the database so the tracker has fresh state.
 		// Without this, GetUsage reads stale in-memory data.
 		if d.tracker != nil && d.convID != "" {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(d.ctx, 5*time.Second)
 			defer cancel()
 			_ = d.tracker.LoadTopics(ctx, d.convID)
 		}

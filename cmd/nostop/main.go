@@ -1,11 +1,14 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/hegner123/nostop/internal/tui"
@@ -134,8 +137,24 @@ func run() error {
 	}
 	defer engine.Close()
 
+	// Root cancellable context — cancelled on SIGINT/SIGTERM so that
+	// in-flight API calls, DB queries, and background goroutines shut
+	// down promptly instead of running with context.Background().
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigCh
+		cancel()
+		// Second signal = immediate exit
+		<-sigCh
+		os.Exit(1)
+	}()
+
 	// Create and run the Bubbletea program
-	app := tui.NewApp(engine)
+	app := tui.NewApp(engine, ctx)
 
 	// Wire engine internals to the TUI so topics, context usage,
 	// and archiver state are visible in the Topics/Debug views.

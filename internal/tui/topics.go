@@ -36,6 +36,7 @@ type topicRestoreErrorMsg struct {
 
 // TopicsModel manages the topics overview view.
 type TopicsModel struct {
+	ctx           context.Context
 	tracker       *topic.TopicTracker
 	archiver      *nostop.Archiver
 	convID        string
@@ -52,8 +53,9 @@ type TopicsModel struct {
 }
 
 // NewTopicsModel creates a new TopicsModel instance.
-func NewTopicsModel(tracker *topic.TopicTracker, archiver *nostop.Archiver, convID string, width, height int) *TopicsModel {
+func NewTopicsModel(tracker *topic.TopicTracker, archiver *nostop.Archiver, convID string, ctx context.Context, width, height int) *TopicsModel {
 	return &TopicsModel{
+		ctx:           ctx,
 		tracker:       tracker,
 		archiver:      archiver,
 		convID:        convID,
@@ -85,7 +87,7 @@ func (m TopicsModel) loadTopics() tea.Cmd {
 		// Without this, GetTopics() returns stale in-memory data that
 		// may belong to a different conversation or a prior session.
 		if m.convID != "" {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(m.ctx, 5*time.Second)
 			defer cancel()
 			if err := m.tracker.LoadTopics(ctx, m.convID); err != nil {
 				return topicsLoadErrorMsg{err: fmt.Errorf("failed to reload topics: %w", err)}
@@ -98,7 +100,7 @@ func (m TopicsModel) loadTopics() tea.Cmd {
 		// Get archived topics from archiver if available
 		var archivedTopics []storage.Topic
 		if m.archiver != nil && m.convID != "" {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(m.ctx, 5*time.Second)
 			defer cancel()
 			var err error
 			archivedTopics, err = m.archiver.GetArchivedTopics(ctx, m.convID)
@@ -251,7 +253,7 @@ func (m TopicsModel) restoreTopic(topic *storage.Topic) tea.Cmd {
 			return topicRestoreErrorMsg{err: fmt.Errorf("archiver not initialized")}
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(m.ctx, 10*time.Second)
 		defer cancel()
 
 		// Restore with placeholder usage values (real impl would calculate these)
