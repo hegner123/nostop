@@ -9,10 +9,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/textarea"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/textarea"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/hegner123/nostop/internal/api"
 	"github.com/hegner123/nostop/internal/storage"
 	"github.com/hegner123/nostop/pkg/nostop"
@@ -37,6 +37,7 @@ type ChatModel struct {
 	input     textarea.Model
 	viewport  viewport.Model
 	streaming bool
+	busy      bool // true for the entire API request cycle (streaming + tool loops)
 	streamBuf strings.Builder
 	width     int
 	height    int
@@ -56,6 +57,15 @@ type ChatModel struct {
 
 	// ctx is the cancellable context propagated from the App root.
 	ctx context.Context
+
+	// Mouse text selection
+	selection *TextSelection
+	// vpRowOffset is the number of lines above the viewport in this
+	// model's View() output — used to map terminal Y to viewport row.
+	vpRowOffset int
+	// contentLines holds the raw content lines (before viewport windowing)
+	// so selection can extract plain text.
+	contentLines []string
 }
 
 // Stream message types for Bubbletea
@@ -127,7 +137,7 @@ func NewChatModel(engine *nostop.Nostop, ctx context.Context, width, height int)
 	if vpHeight < 5 {
 		vpHeight = 5
 	}
-	vp := viewport.New(width-2, vpHeight)
+	vp := viewport.New(viewport.WithWidth(width-2), viewport.WithHeight(vpHeight))
 	vp.SetContent("")
 
 	return ChatModel{
@@ -142,6 +152,7 @@ func NewChatModel(engine *nostop.Nostop, ctx context.Context, width, height int)
 		ready:         true,
 		restorePrompt: NewRestorePrompt(nil, "", width),
 		notifications: NewNotificationManager(),
+		selection:     NewTextSelection(),
 	}
 }
 
@@ -163,8 +174,8 @@ func (m *ChatModel) Update(msg tea.Msg) (*ChatModel, tea.Cmd) {
 	)
 
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		Log("ChatModel.Update KeyMsg: key=%q type=%v streaming=%v convID=%q", msg.String(), msg.Type, m.streaming, m.convID)
+	case tea.KeyPressMsg:
+		Log("ChatModel.Update KeyPressMsg: key=%q streaming=%v convID=%q", msg.String(), m.streaming, m.convID)
 		// Don't process keys while streaming
 		if m.streaming {
 			Log("ChatModel: ignoring key during streaming")
@@ -196,12 +207,12 @@ func (m *ChatModel) Update(msg tea.Msg) (*ChatModel, tea.Cmd) {
 			}
 		}
 
-		switch msg.Type {
+		switch msg.Key().Code {
 		case tea.KeyEnter:
-			Log("ChatModel: Enter pressed, Alt=%v", msg.Alt)
-			// Check if Shift is held for newline
-			if msg.Alt {
-				// Let textarea handle Shift+Enter as newline
+			Log("ChatModel: Enter pressed, Mod=%v", msg.Key().Mod)
+			// Check if Alt is held for newline
+			if msg.Key().Mod&tea.ModAlt != 0 {
+				// Let textarea handle Alt+Enter as newline
 				m.input, tiCmd = m.input.Update(msg)
 				return m, tiCmd
 			}
@@ -209,7 +220,7 @@ func (m *ChatModel) Update(msg tea.Msg) (*ChatModel, tea.Cmd) {
 			Log("ChatModel: calling handleSendMessage")
 			return m.handleSendMessage()
 
-		case tea.KeyEsc:
+		case tea.KeyEscape:
 			// Clear restore prompt if visible
 			if m.restorePrompt != nil && m.restorePrompt.IsVisible() {
 				m.restorePrompt.Clear()
@@ -244,6 +255,10 @@ func (m *ChatModel) Update(msg tea.Msg) (*ChatModel, tea.Cmd) {
 			return m, tiCmd
 
 		default:
+			// Clear selection when user types
+			if m.selection != nil {
+				m.selection.Clear()
+			}
 			// Pass other keys to textarea
 			m.input, tiCmd = m.input.Update(msg)
 			return m, tiCmd
@@ -328,6 +343,9 @@ func (m *ChatModel) Update(msg tea.Msg) (*ChatModel, tea.Cmd) {
 		Log("StreamStartMsg received - starting streaming")
 		m.streaming = true
 		m.streamBuf.Reset()
+		if m.selection != nil {
+			m.selection.Clear()
+		}
 		// Add placeholder for assistant message
 		m.messages = append(m.messages, ChatMessage{
 			Role:    "assistant",
@@ -363,6 +381,7 @@ func (m *ChatModel) Update(msg tea.Msg) (*ChatModel, tea.Cmd) {
 	case StreamDoneMsg:
 		Log("StreamDoneMsg received - streaming complete")
 		m.streaming = false
+		m.busy = false
 		if msg.Response != nil && len(m.messages) > 0 {
 			// Find the last assistant message to update with final content.
 			// Do NOT blindly overwrite the last message — it may be a tool result.
@@ -396,6 +415,7 @@ func (m *ChatModel) Update(msg tea.Msg) (*ChatModel, tea.Cmd) {
 	case StreamErrorMsg:
 		Log("StreamErrorMsg received: %v", msg.Err)
 		m.streaming = false
+		m.busy = false
 		m.err = msg.Err
 		// Remove the placeholder assistant message if streaming failed
 		if len(m.messages) > 0 && m.messages[len(m.messages)-1].Role == "assistant" && m.messages[len(m.messages)-1].Content == "" {
@@ -444,22 +464,15 @@ func (m *ChatModel) Update(msg tea.Msg) (*ChatModel, tea.Cmd) {
 func (m ChatModel) View() string {
 	var b strings.Builder
 
-	// Show topic indicator if we have a topic
-	if m.topicName != "" {
-		topicLabel := m.styles.TopicLabel.Render("Topic:")
-		topicName := m.styles.TopicCurrent.Render(" " + m.topicName)
-		b.WriteString(topicLabel + topicName)
-		b.WriteString("\n\n")
-	}
+	// Viewport is the first element — no lines above it for mouse mapping.
+	m.vpRowOffset = 0
 
-	// Show restore notifications
-	if m.notifications != nil && m.notifications.HasNotifications() {
-		b.WriteString(m.notifications.View())
-		b.WriteString("\n")
+	// Render message viewport with optional selection highlight
+	vpView := m.viewport.View()
+	if m.selection != nil && m.selection.HasSelection() {
+		vpView = m.selection.ApplyHighlight(vpView)
 	}
-
-	// Render message viewport
-	b.WriteString(m.viewport.View())
+	b.WriteString(vpView)
 	b.WriteString("\n\n")
 
 	// Show restore prompt if visible
@@ -468,10 +481,9 @@ func (m ChatModel) View() string {
 		b.WriteString("\n\n")
 	}
 
-	// Show streaming indicator
-	if m.streaming {
-		b.WriteString(m.styles.Info.Render("Streaming response..."))
-		b.WriteString("\n")
+	// Show notifications above input (compact, near user's focus)
+	if m.notifications != nil && m.notifications.HasNotifications() {
+		b.WriteString(m.notifications.View())
 	}
 
 	// Render input area
@@ -585,6 +597,7 @@ func (m *ChatModel) sendMessageDirectly(content string) (*ChatModel, tea.Cmd) {
 	// Create a fresh stream channel and start streaming.
 	// Channel is created here (synchronous Update path) so that
 	// waitForStream closures always capture the correct channel.
+	m.busy = true
 	m.streamCh = make(chan tea.Msg, 100)
 	return m, startStream(m.streamCh, m.engine, m.ctx, m.convID, content)
 }
@@ -716,6 +729,8 @@ func (m ChatModel) waitForStream() tea.Cmd {
 func (m *ChatModel) updateViewport() {
 	content := m.renderMessages()
 	m.viewport.SetContent(content)
+	// Cache content lines for selection text extraction.
+	m.contentLines = strings.Split(content, "\n")
 }
 
 // renderMessages renders all messages for display in the viewport.
@@ -1029,6 +1044,67 @@ func truncateToolOutput(output string, maxLen int) string {
 	return output[:maxLen] + "\n... (truncated)"
 }
 
+// HandleMouseClick processes a left-click within the viewport.
+// col and row are viewport-relative coordinates.
+func (m *ChatModel) HandleMouseClick(col, row int) tea.Cmd {
+	if m.selection == nil {
+		return nil
+	}
+
+	clickCount := m.selection.HandleMouseDown(col, row)
+
+	switch clickCount {
+	case 2:
+		// Double-click: select word
+		contentRow := row + m.viewport.YOffset()
+		if contentRow < len(m.contentLines) {
+			m.selection.SelectWord(m.contentLines[contentRow], row, col)
+		}
+	case 3:
+		// Triple-click: select line
+		contentRow := row + m.viewport.YOffset()
+		if contentRow < len(m.contentLines) {
+			m.selection.SelectLine(m.contentLines[contentRow], row)
+		}
+		m.selection.clickCount = 0 // reset after triple
+	}
+
+	return nil
+}
+
+// HandleMouseDrag extends the selection during a drag.
+func (m *ChatModel) HandleMouseDrag(col, row int) {
+	if m.selection == nil {
+		return
+	}
+	m.selection.HandleMouseDrag(col, row)
+}
+
+// HandleMouseUp completes the selection and copies to clipboard.
+func (m *ChatModel) HandleMouseUp() tea.Cmd {
+	if m.selection == nil {
+		return nil
+	}
+	if m.selection.HandleMouseUp() {
+		text := m.selection.ExtractText(m.contentLines, m.viewport.YOffset())
+		if text != "" {
+			return CopyToClipboard(text)
+		}
+	}
+	return nil
+}
+
+// VpRowOffset returns the number of rendered lines above the viewport
+// within this model's View output.
+func (m *ChatModel) VpRowOffset() int {
+	return m.vpRowOffset
+}
+
+// ViewportHeight returns the viewport's visible height.
+func (m *ChatModel) ViewportHeight() int {
+	return m.viewport.Height()
+}
+
 // SetSize updates the chat model dimensions.
 func (m *ChatModel) SetSize(width, height int) {
 	m.width = width
@@ -1043,8 +1119,8 @@ func (m *ChatModel) SetSize(width, height int) {
 	if vpHeight < 5 {
 		vpHeight = 5
 	}
-	m.viewport.Width = width - 2
-	m.viewport.Height = vpHeight
+	m.viewport.SetWidth(width - 2)
+	m.viewport.SetHeight(vpHeight)
 
 	// Re-render messages for new width
 	m.updateViewport()
@@ -1063,6 +1139,12 @@ func (m ChatModel) GetConversation() string {
 // IsStreaming returns true if currently streaming a response.
 func (m ChatModel) IsStreaming() bool {
 	return m.streaming
+}
+
+// IsBusy returns true during the entire API request cycle,
+// including streaming, tool execution, and thinking pauses.
+func (m ChatModel) IsBusy() bool {
+	return m.busy
 }
 
 // SetTopic sets the current topic name.

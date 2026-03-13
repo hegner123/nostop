@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/hegner123/nostop/internal/storage"
 )
 
@@ -377,6 +377,7 @@ type NotificationType int
 
 const (
 	NotifyRestore    NotificationType = iota // Archived topic restored
+	NotifyArchive                            // Active topic archived
 	NotifyTopicNew                           // New topic identified
 	NotifyTopicShift                         // Topic shift detected
 	NotifyInfo                               // General info
@@ -419,6 +420,16 @@ func (nm *NotificationManager) push(n Notification) {
 func (nm *NotificationManager) AddRestoreNotification(topicName string, tokenCount int) {
 	nm.push(Notification{
 		Type:       NotifyRestore,
+		TopicName:  topicName,
+		TokenCount: tokenCount,
+		Visible:    true,
+	})
+}
+
+// AddArchiveNotification adds a notification about an archived topic.
+func (nm *NotificationManager) AddArchiveNotification(topicName string, tokenCount int) {
+	nm.push(Notification{
+		Type:       NotifyArchive,
 		TopicName:  topicName,
 		TokenCount: tokenCount,
 		Visible:    true,
@@ -478,6 +489,10 @@ func (nm *NotificationManager) View() string {
 			style = lipgloss.NewStyle().Foreground(lipgloss.Color("82")).Italic(true)
 			tokenStr := formatTokenCount(n.TokenCount)
 			msg = fmt.Sprintf("Restored topic '%s' (%s tokens)", n.TopicName, tokenStr)
+		case NotifyArchive:
+			style = lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Italic(true)
+			tokenStr := formatTokenCount(n.TokenCount)
+			msg = fmt.Sprintf("Archived topic '%s' (%s tokens freed)", n.TopicName, tokenStr)
 		case NotifyTopicNew:
 			style = lipgloss.NewStyle().Foreground(lipgloss.Color("39")).Italic(true)
 			msg = fmt.Sprintf("Topic: %s", n.TopicName)

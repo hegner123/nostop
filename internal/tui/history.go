@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/list"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/list"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/hegner123/nostop/internal/storage"
 )
 
@@ -108,8 +108,6 @@ func NewHistoryModel(store *storage.SQLite, ctx context.Context, width, height i
 
 	// Customize list styles
 	l.Styles.Title = styles.PanelTitle
-	l.Styles.FilterPrompt = styles.InputPrompt
-	l.Styles.FilterCursor = styles.InputPrompt
 
 	return &HistoryModel{
 		ctx:           ctx,
@@ -219,7 +217,7 @@ func (m *HistoryModel) Update(msg tea.Msg) (*HistoryModel, tea.Cmd) {
 		m.deleteTarget = ""
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		// Handle delete confirmation mode
 		if m.confirmDelete {
 			switch msg.String() {

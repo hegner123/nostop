@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/hegner123/nostop/internal/storage"
 	"github.com/hegner123/nostop/internal/topic"
 	"github.com/hegner123/nostop/pkg/nostop"
@@ -22,6 +22,16 @@ type TopicsLoadedMsg struct {
 // TopicRestoredMsg is sent when an archived topic has been restored.
 type TopicRestoredMsg struct {
 	Topic *storage.Topic
+}
+
+// TopicArchivedMsg is sent when a topic has been manually archived.
+type TopicArchivedMsg struct {
+	Topic *storage.Topic
+}
+
+// topicArchiveErrorMsg is sent when archiving a topic fails.
+type topicArchiveErrorMsg struct {
+	err error
 }
 
 // topicsLoadErrorMsg is sent when loading topics fails.
@@ -50,6 +60,10 @@ type TopicsModel struct {
 	styles        Styles
 	loading       bool
 	confirmDialog *RestoreConfirmDialog // Confirmation dialog for restoration
+
+	// Manual archive confirmation
+	archiveConfirm bool
+	archiveTarget  *storage.Topic
 }
 
 // NewTopicsModel creates a new TopicsModel instance.
@@ -141,6 +155,10 @@ func (m TopicsModel) Update(msg tea.Msg) (TopicsModel, tea.Cmd) {
 		// Reload topics after restoration
 		return m, m.loadTopics()
 
+	case TopicArchivedMsg:
+		// Reload topics after archival
+		return m, m.loadTopics()
+
 	case topicsLoadErrorMsg:
 		m.err = msg.err
 		m.loading = false
@@ -150,7 +168,13 @@ func (m TopicsModel) Update(msg tea.Msg) (TopicsModel, tea.Cmd) {
 		m.err = msg.err
 		return m, nil
 
-	case tea.KeyMsg:
+	case topicArchiveErrorMsg:
+		m.err = msg.err
+		m.archiveConfirm = false
+		m.archiveTarget = nil
+		return m, nil
+
+	case tea.KeyPressMsg:
 		return m.handleKeyPress(msg)
 	}
 
@@ -158,7 +182,23 @@ func (m TopicsModel) Update(msg tea.Msg) (TopicsModel, tea.Cmd) {
 }
 
 // handleKeyPress processes key events for the topics view.
-func (m TopicsModel) handleKeyPress(msg tea.KeyMsg) (TopicsModel, tea.Cmd) {
+func (m TopicsModel) handleKeyPress(msg tea.KeyPressMsg) (TopicsModel, tea.Cmd) {
+	// Archive confirmation mode — y/n only
+	if m.archiveConfirm {
+		switch msg.String() {
+		case "y", "Y":
+			target := m.archiveTarget
+			m.archiveConfirm = false
+			m.archiveTarget = nil
+			return m, m.archiveTopic(target)
+		case "n", "N", "esc":
+			m.archiveConfirm = false
+			m.archiveTarget = nil
+			return m, nil
+		}
+		return m, nil
+	}
+
 	// If confirmation dialog is visible, let it handle keys
 	if m.confirmDialog != nil && m.confirmDialog.IsVisible() {
 		confirmed, cancelled, handled := m.confirmDialog.HandleKey(msg.String())
@@ -208,6 +248,15 @@ func (m TopicsModel) handleKeyPress(msg tea.KeyMsg) (TopicsModel, tea.Cmd) {
 				// Fallback: restore directly without dialog
 				return m, m.restoreTopic(selectedTopic)
 			}
+		}
+		return m, nil
+
+	case "x":
+		// Archive selected active topic (not current, not already archived)
+		selectedTopic := m.getSelectedTopic()
+		if selectedTopic != nil && !selectedTopic.IsArchived() && !selectedTopic.IsCurrent {
+			m.archiveConfirm = true
+			m.archiveTarget = selectedTopic
 		}
 		return m, nil
 
@@ -263,6 +312,28 @@ func (m TopicsModel) restoreTopic(topic *storage.Topic) tea.Cmd {
 		}
 
 		return TopicRestoredMsg{Topic: restored}
+	}
+}
+
+// archiveTopic creates a command to archive a specific active topic.
+func (m TopicsModel) archiveTopic(t *storage.Topic) tea.Cmd {
+	if t == nil || t.IsArchived() || t.IsCurrent {
+		return nil
+	}
+
+	return func() tea.Msg {
+		if m.archiver == nil {
+			return topicArchiveErrorMsg{err: fmt.Errorf("archiver not initialized")}
+		}
+
+		ctx, cancel := context.WithTimeout(m.ctx, 10*time.Second)
+		defer cancel()
+
+		if err := m.archiver.ArchiveTopic(ctx, t, 0, 0); err != nil {
+			return topicArchiveErrorMsg{err: err}
+		}
+
+		return TopicArchivedMsg{Topic: t}
 	}
 }
 
@@ -322,8 +393,36 @@ func (m TopicsModel) View() string {
 		return m.wrapInPanel(b.String())
 	}
 
-	// Show confirmation dialog if visible
-	if m.confirmDialog != nil && m.confirmDialog.IsVisible() {
+	// Show confirmation dialogs if visible
+	if m.archiveConfirm && m.archiveTarget != nil {
+		archiveStyle := lipgloss.NewStyle().
+			Border(lipgloss.DoubleBorder()).
+			BorderForeground(lipgloss.Color("214")). // Orange for warning
+			Padding(1, 2).
+			Width(m.width - 16)
+		headerStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214"))
+		keyStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("39"))
+
+		var ab strings.Builder
+		ab.WriteString(headerStyle.Render("Archive Topic"))
+		ab.WriteString("\n\n")
+		ab.WriteString(m.styles.Info.Render("Topic: "))
+		ab.WriteString(m.styles.TopicActive.Render(m.archiveTarget.Name))
+		ab.WriteString("\n")
+		ab.WriteString(m.styles.Info.Render("Tokens: "))
+		ab.WriteString(m.styles.DebugValue.Render(formatTokenCount(m.archiveTarget.TokenCount)))
+		ab.WriteString("\n\n")
+		warnStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Italic(true)
+		ab.WriteString(warnStyle.Render("This will remove the topic's messages from active context."))
+		ab.WriteString("\n\n")
+		ab.WriteString("Archive this topic? ")
+		ab.WriteString(keyStyle.Render("[y]"))
+		ab.WriteString(m.styles.Help.Render(" yes  "))
+		ab.WriteString(keyStyle.Render("[n/esc]"))
+		ab.WriteString(m.styles.Help.Render(" cancel"))
+		b.WriteString(archiveStyle.Render(ab.String()))
+		b.WriteString("\n\n")
+	} else if m.confirmDialog != nil && m.confirmDialog.IsVisible() {
 		b.WriteString(m.confirmDialog.View())
 		b.WriteString("\n\n")
 	}
@@ -358,6 +457,7 @@ func (m TopicsModel) View() string {
 	b.WriteString("\n")
 	helpItems := []string{
 		m.styles.RenderKeyBinding("j/k", "navigate"),
+		m.styles.RenderKeyBinding("x", "archive"),
 		m.styles.RenderKeyBinding("a", "toggle archived"),
 	}
 	if m.showArchived && len(m.archived) > 0 {

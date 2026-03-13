@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/hegner123/nostop/internal/topic"
 	"github.com/hegner123/nostop/pkg/nostop"
 )
@@ -77,7 +77,7 @@ func (d DebugModel) Init() tea.Cmd {
 // Update implements tea.Model. It handles messages and updates the model.
 func (d DebugModel) Update(msg tea.Msg) (DebugModel, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "r":
 			// Toggle auto-refresh

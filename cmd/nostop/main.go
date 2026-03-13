@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"syscall"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/hegner123/nostop/internal/tui"
 	"github.com/hegner123/nostop/pkg/nostop"
 )
@@ -166,11 +166,7 @@ func run() error {
 	// log.Printf calls from the engine don't corrupt Bubbletea's display.
 	log.SetOutput(tui.LogWriter())
 
-	p := tea.NewProgram(
-		app,
-		tea.WithAltScreen(),       // Use alternate screen buffer
-		tea.WithMouseCellMotion(), // Enable mouse support
-	)
+	p := tea.NewProgram(app)
 
 	// Run the program
 	if _, err := p.Run(); err != nil {

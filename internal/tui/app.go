@@ -4,7 +4,8 @@ import (
 	"context"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/hegner123/nostop/internal/topic"
 	"github.com/hegner123/nostop/pkg/nostop"
 )
@@ -108,8 +109,8 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return a, nil
 
-	case tea.KeyMsg:
-		Log("KeyMsg: key=%q overlay=%v chatModel=%v", msg.String(), a.activeOverlay != nil, a.chatModel != nil)
+	case tea.KeyPressMsg:
+		Log("KeyPressMsg: key=%q overlay=%v chatModel=%v", msg.String(), a.activeOverlay != nil, a.chatModel != nil)
 
 		// ctrl+c always quits
 		if msg.String() == "ctrl+c" {
@@ -271,6 +272,22 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return a, tea.Batch(cmds...)
 
+	case TopicArchivedMsg:
+		var cmds []tea.Cmd
+		if a.topicsModel != nil {
+			var cmd tea.Cmd
+			*a.topicsModel, cmd = a.topicsModel.Update(msg)
+			cmds = append(cmds, cmd)
+		}
+		if msg.Topic != nil {
+			a.AddArchiveEvent(msg.Topic.Name, msg.Topic.TokenCount, false)
+			if a.chatModel != nil && a.chatModel.notifications != nil {
+				a.chatModel.notifications.AddArchiveNotification(msg.Topic.Name, msg.Topic.TokenCount)
+				a.chatModel.updateViewport()
+			}
+		}
+		return a, tea.Batch(cmds...)
+
 	// Chat restore messages
 	case RestoreCheckResultMsg, RestoreAndSendMsg, TopicRestoreCompleteMsg:
 		var cmd tea.Cmd
@@ -288,6 +305,50 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, cmd
 		}
 		return a, nil
+
+	// Clipboard copy completed — clear selection highlight
+	case copyDoneMsg:
+		if a.chatModel != nil && a.chatModel.selection != nil {
+			a.chatModel.selection.Clear()
+		}
+		return a, nil
+
+	// Mouse events — route to chat model for text selection
+	case tea.MouseClickMsg:
+		if a.activeOverlay != nil || a.chatModel == nil {
+			return a, nil
+		}
+		if msg.Button == tea.MouseLeft {
+			col := msg.X - 1 // subtract App horizontal padding
+			chatY := a.computeChatStartY()
+			row := msg.Y - chatY - a.chatModel.VpRowOffset()
+			if row >= 0 && row < a.chatModel.ViewportHeight() {
+				return a, a.chatModel.HandleMouseClick(col, row)
+			}
+		}
+		return a, nil
+
+	case tea.MouseMotionMsg:
+		if a.activeOverlay != nil || a.chatModel == nil {
+			return a, nil
+		}
+		col := msg.X - 1
+		chatY := a.computeChatStartY()
+		row := msg.Y - chatY - a.chatModel.VpRowOffset()
+		// Clamp row to viewport bounds — drag can exceed visible area
+		if row < 0 {
+			row = 0
+		} else if row >= a.chatModel.ViewportHeight() {
+			row = a.chatModel.ViewportHeight() - 1
+		}
+		a.chatModel.HandleMouseDrag(col, row)
+		return a, nil
+
+	case tea.MouseReleaseMsg:
+		if a.activeOverlay != nil || a.chatModel == nil {
+			return a, nil
+		}
+		return a, a.chatModel.HandleMouseUp()
 	}
 
 	// Pass other messages to chat model (mouse events, blink, etc.)
@@ -301,12 +362,12 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View implements tea.Model.
-func (a App) View() string {
+func (a App) View() tea.View {
 	if a.quitting {
-		return "Goodbye!\n"
+		return tea.NewView("Goodbye!\n")
 	}
 	if !a.ready {
-		return "Initializing...\n"
+		return tea.NewView("Initializing...\n")
 	}
 
 	var b strings.Builder
@@ -339,10 +400,17 @@ func (a App) View() string {
 	base := a.styles.App.Render(b.String())
 
 	// Composite overlay on top if active
+	var content string
 	if a.activeOverlay != nil {
-		return RenderOverlay(base, a.activeOverlay, a.width, a.height)
+		content = RenderOverlay(base, a.activeOverlay, a.width, a.height)
+	} else {
+		content = base
 	}
-	return base
+
+	v := tea.NewView(content)
+	v.AltScreen = true
+	v.MouseMode = tea.MouseModeCellMotion
+	return v
 }
 
 // toggleOverlay opens an overlay, or closes it if it's already the active one.
@@ -365,9 +433,35 @@ func (a App) toggleOverlay(target ModalOverlay, onOpen func() tea.Cmd) (tea.Mode
 	return a, nil
 }
 
-// renderHeader renders the application header.
+// renderHeader renders the application header with optional topic name.
 func (a App) renderHeader() string {
 	title := a.styles.Title.Render("nostop")
+
+	// Activity indicator when API is working
+	if a.chatModel != nil && a.chatModel.IsBusy() {
+		var status string
+		if a.chatModel.IsStreaming() {
+			status = "receiving"
+		} else {
+			status = "working"
+		}
+		title = title + a.styles.Info.Render(" · "+status)
+	}
+
+	if a.chatModel != nil && a.chatModel.GetTopic() != "" {
+		topic := a.chatModel.GetTopic()
+		topicPart := a.styles.Help.Render("topic: ") + a.styles.TopicCurrent.Render(topic)
+
+		contentWidth := a.width - 4 // Header Width(w-2) minus Padding(0,1) = w-4
+		titleW := lipgloss.Width(title)
+		topicW := lipgloss.Width(topicPart)
+		gap := contentWidth - titleW - topicW
+		if gap < 2 {
+			gap = 2
+		}
+		title = title + strings.Repeat(" ", gap) + topicPart
+	}
+
 	return a.styles.Header.Width(a.width - 2).Render(title)
 }
 
@@ -393,6 +487,16 @@ func (a App) renderHelp() string {
 	return a.styles.Help.Render(strings.Join(bindings, "  "))
 }
 
+// computeChatStartY returns the terminal row where the chat model's content
+// begins, accounting for the header and optional error bar.
+func (a App) computeChatStartY() int {
+	y := strings.Count(a.renderHeader(), "\n") + 1 // header + trailing \n in View
+	if a.err != nil {
+		y += strings.Count(a.renderError(), "\n") + 1
+	}
+	return y
+}
+
 // handleNewConversation creates a new conversation.
 func (a App) handleNewConversation() (tea.Model, tea.Cmd) {
 	if a.engine == nil {
@@ -415,16 +519,16 @@ func (a App) handleNewConversation() (tea.Model, tea.Cmd) {
 
 // --- Accessor methods ---
 
-func (a *App) SetConversation(convID string)              { a.convID = convID }
-func (a *App) GetConversation() string                    { return a.convID }
-func (a *App) SetError(err error)                         { a.err = err }
-func (a *App) ClearError()                                { a.err = nil }
-func (a *App) Nostop() *nostop.Nostop                     { return a.engine }
-func (a *App) Tracker() *topic.TopicTracker               { return a.tracker }
-func (a *App) Archiver() *nostop.Archiver                 { return a.archiver }
-func (a *App) ContextManager() *nostop.ContextManager     { return a.contextMgr }
-func (a *App) DebugModel() *DebugModel                    { return a.debugModel }
-func (a *App) SetTracker(tracker *topic.TopicTracker)     { a.tracker = tracker }
+func (a *App) SetConversation(convID string)          { a.convID = convID }
+func (a *App) GetConversation() string                { return a.convID }
+func (a *App) SetError(err error)                     { a.err = err }
+func (a *App) ClearError()                            { a.err = nil }
+func (a *App) Nostop() *nostop.Nostop                 { return a.engine }
+func (a *App) Tracker() *topic.TopicTracker           { return a.tracker }
+func (a *App) Archiver() *nostop.Archiver             { return a.archiver }
+func (a *App) ContextManager() *nostop.ContextManager { return a.contextMgr }
+func (a *App) DebugModel() *DebugModel                { return a.debugModel }
+func (a *App) SetTracker(tracker *topic.TopicTracker) { a.tracker = tracker }
 
 func (a *App) SetArchiver(archiver *nostop.Archiver) {
 	a.archiver = archiver
@@ -476,4 +580,3 @@ func (a *App) loadChatMessages() tea.Cmd {
 		return nil
 	}
 }
-

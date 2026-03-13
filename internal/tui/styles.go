@@ -1,7 +1,7 @@
 // Package tui provides the Bubbletea-based terminal user interface for nostop.
 package tui
 
-import "github.com/charmbracelet/lipgloss"
+import "charm.land/lipgloss/v2"
 
 // Color palette - using ANSI colors for broad terminal compatibility.
 var (

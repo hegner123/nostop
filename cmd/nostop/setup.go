@@ -14,10 +14,10 @@ import (
 type toolAccessLevel int
 
 const (
-	toolAccessNone    toolAccessLevel = iota // Chat only, no tools
-	toolAccessReadOnly                       // Read + search tools only
-	toolAccessStandard                       // Read + write + search + analysis (no delete, no bash)
-	toolAccessFull                           // All tools including bash and delete
+	toolAccessNone     toolAccessLevel = iota // Chat only, no tools
+	toolAccessReadOnly                        // Read + search tools only
+	toolAccessStandard                        // Read + write + search + analysis (no delete, no bash)
+	toolAccessFull                            // All tools including bash and delete
 )
 
 // firstRunSetup runs the interactive first-run configuration wizard.
