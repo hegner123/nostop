@@ -3,8 +3,10 @@ package tui
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"path/filepath"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textarea"
@@ -18,11 +20,12 @@ import (
 
 // ChatMessage represents a message displayed in the chat view.
 type ChatMessage struct {
-	Role     string // "user", "assistant", "system", or "tool"
-	Content  string
-	Topic    string // topic name when message was sent
-	ToolName string // populated when Role == "tool"
-	IsError  bool   // tool execution error
+	Role       string // "user", "assistant", "system", or "tool"
+	Content    string
+	Topic      string // topic name when message was sent
+	ToolName   string // populated when Role == "tool"
+	ToolTarget string // file/dir the tool is operating on (for display)
+	IsError    bool   // tool execution error
 }
 
 // ChatModel is the Bubbletea model for the chat view.
@@ -272,14 +275,12 @@ func (m *ChatModel) Update(msg tea.Msg) (*ChatModel, tea.Cmd) {
 		}
 		m.streaming = false
 
-		toolLabel := msg.Name
-		if target := toolTarget(msg.Input); target != "" {
-			toolLabel = msg.Name + " " + target
-		}
+		target := toolTarget(msg.Input)
 		m.messages = append(m.messages, ChatMessage{
-			Role:     "tool",
-			ToolName: msg.Name,
-			Content:  fmt.Sprintf("Calling %s...", toolLabel),
+			Role:       "tool",
+			ToolName:   msg.Name,
+			ToolTarget: target,
+			Content:    "...",
 		})
 		m.updateViewport()
 		m.viewport.GotoBottom()
@@ -289,7 +290,7 @@ func (m *ChatModel) Update(msg tea.Msg) (*ChatModel, tea.Cmd) {
 		// Update the last tool message with the result
 		for i := len(m.messages) - 1; i >= 0; i-- {
 			if m.messages[i].Role == "tool" && m.messages[i].ToolName == msg.Name {
-				m.messages[i].Content = truncateToolOutput(msg.Output, 500)
+				m.messages[i].Content = formatToolOutput(msg.Output, 500)
 				m.messages[i].IsError = msg.IsError
 				break
 			}
@@ -742,7 +743,11 @@ func (m ChatModel) renderMessages() string {
 			b.WriteString(m.styles.SystemMessage.Render(content))
 
 		case "tool":
-			label := m.styles.ToolLabel.Render("Tool: " + msg.ToolName)
+			toolDisplay := msg.ToolName
+			if msg.ToolTarget != "" {
+				toolDisplay += " " + msg.ToolTarget
+			}
+			label := m.styles.ToolLabel.Render("Tool: " + toolDisplay)
 			b.WriteString(label)
 			b.WriteString("\n")
 			content := m.wrapText(msg.Content, maxWidth)
@@ -829,6 +834,103 @@ func toolTarget(input map[string]any) string {
 		}
 	}
 	return ""
+}
+
+// formatToolOutput extracts readable content from JSON tool output.
+// Falls back to truncated raw output if parsing fails.
+func formatToolOutput(output string, maxLen int) string {
+	var obj map[string]any
+	if err := json.Unmarshal([]byte(output), &obj); err != nil {
+		return truncateToolOutput(output, maxLen)
+	}
+
+	// read tool: {"file": "...", "content": "..."}
+	if content, ok := obj["content"].(string); ok {
+		var header string
+		if file, ok := obj["file"].(string); ok {
+			header = filepath.Base(file) + ":\n"
+		}
+		return truncateToolOutput(header+content, maxLen)
+	}
+
+	// bash tool: {"stdout": "...", "stderr": "...", "exit_code": N}
+	if _, hasStdout := obj["stdout"]; hasStdout {
+		var b strings.Builder
+		exitCode := 0
+		if ec, ok := obj["exit_code"].(float64); ok {
+			exitCode = int(ec)
+		}
+		if stderr, ok := obj["stderr"].(string); ok && stderr != "" {
+			b.WriteString(stderr)
+			b.WriteString("\n")
+		}
+		if stdout, ok := obj["stdout"].(string); ok && stdout != "" {
+			b.WriteString(stdout)
+		}
+		if exitCode != 0 {
+			fmt.Fprintf(&b, "\n(exit %d)", exitCode)
+		}
+		result := strings.TrimSpace(b.String())
+		if result == "" {
+			return "(no output)"
+		}
+		return truncateToolOutput(result, maxLen)
+	}
+
+	// write tool: {"file": "...", "bytes_written": N, "status": "ok"}
+	if status, ok := obj["status"].(string); ok && status == "ok" {
+		if file, ok := obj["file"].(string); ok {
+			bytes := 0
+			if bw, ok := obj["bytes_written"].(float64); ok {
+				bytes = int(bw)
+			}
+			return fmt.Sprintf("wrote %d bytes to %s", bytes, filepath.Base(file))
+		}
+	}
+
+	// stump tool: {"root": ".", "stats": {"dirs": N, "files": N}, ...}
+	if stats, ok := obj["stats"].(map[string]any); ok {
+		root, _ := obj["root"].(string)
+		dirs, _ := stats["dirs"].(float64)
+		files, _ := stats["files"].(float64)
+		if root == "" {
+			root = "."
+		}
+		return fmt.Sprintf("%s: %d dirs, %d files", root, int(dirs), int(files))
+	}
+
+	// checkfor/repfor: {"matches": [...]} or {"files_modified": N, ...}
+	if matches, ok := obj["matches"].([]any); ok {
+		return fmt.Sprintf("%d matches", len(matches))
+	}
+	if n, ok := obj["files_modified"].(float64); ok {
+		replacements, _ := obj["replacements"].(float64)
+		return fmt.Sprintf("%d replacements in %d files", int(replacements), int(n))
+	}
+
+	// sig tool: {"file": "...", "functions": [...], "types": [...]}
+	if _, hasFunctions := obj["functions"]; hasFunctions {
+		file, _ := obj["file"].(string)
+		nFuncs := 0
+		nTypes := 0
+		if fns, ok := obj["functions"].([]any); ok {
+			nFuncs = len(fns)
+		}
+		if tps, ok := obj["types"].([]any); ok {
+			nTypes = len(tps)
+		}
+		return fmt.Sprintf("%s: %d functions, %d types", filepath.Base(file), nFuncs, nTypes)
+	}
+
+	// imports tool: {"files": [...], "summary": {...}}
+	if summary, ok := obj["summary"].(map[string]any); ok {
+		totalFiles, _ := summary["total_files"].(float64)
+		totalImports, _ := summary["total_imports"].(float64)
+		return fmt.Sprintf("%d imports across %d files", int(totalImports), int(totalFiles))
+	}
+
+	// Generic fallback: truncated raw output
+	return truncateToolOutput(output, maxLen)
 }
 
 // truncateToolOutput truncates tool output for display in the TUI.
