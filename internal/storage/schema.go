@@ -33,11 +33,15 @@ CREATE TABLE IF NOT EXISTS messages (
     id TEXT PRIMARY KEY,
     conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
     topic_id TEXT REFERENCES topics(id) ON DELETE SET NULL,
-    role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
+    role TEXT NOT NULL CHECK(role IN ('user', 'assistant', 'system')),
     content TEXT NOT NULL,   -- JSON array of content blocks
     token_count INTEGER DEFAULT 0,
     is_archived BOOLEAN DEFAULT FALSE,
-    created_at DATETIME NOT NULL
+    created_at DATETIME NOT NULL,
+    -- Summary message fields (Phase A: Summary-on-Archive)
+    is_summary BOOLEAN DEFAULT FALSE,
+    summary_source TEXT,           -- 'topic' or 'work_unit'
+    summary_source_id TEXT         -- topic_id or work_unit_id being summarized
 );
 
 -- Archive storage (full message content for archived topics)
@@ -65,6 +69,8 @@ CREATE TABLE IF NOT EXISTS archive_events (
 CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_messages_topic ON messages(topic_id);
 CREATE INDEX IF NOT EXISTS idx_messages_archived ON messages(is_archived);
+CREATE INDEX IF NOT EXISTS idx_messages_summary ON messages(is_summary);
+CREATE INDEX IF NOT EXISTS idx_messages_summary_source ON messages(summary_source_id);
 CREATE INDEX IF NOT EXISTS idx_topics_conversation ON topics(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_topics_archived ON topics(archived_at);
 CREATE INDEX IF NOT EXISTS idx_topics_current ON topics(is_current);
@@ -77,8 +83,22 @@ CREATE INDEX IF NOT EXISTS idx_archive_events_topic ON archive_events(topic_id);
 // Migrations holds incremental schema updates for future versions.
 // Each migration should be idempotent (safe to run multiple times).
 var Migrations = []string{
-	// Migration 0: Initial schema (applied via Schema constant above)
-	// Future migrations can be added here as the schema evolves
+	// Migration 0: Add summary columns to messages table (Phase A: Summary-on-Archive)
+	`
+	-- Add is_summary column if it doesn't exist
+	ALTER TABLE messages ADD COLUMN is_summary BOOLEAN DEFAULT FALSE;
+	`,
+	`
+	-- Add summary_source column if it doesn't exist
+	ALTER TABLE messages ADD COLUMN summary_source TEXT;
+	`,
+	`
+	-- Add summary_source_id column if it doesn't exist
+	ALTER TABLE messages ADD COLUMN summary_source_id TEXT;
+	`,
+	// Migration 3: Add 'system' role to messages CHECK constraint
+	// Note: SQLite doesn't support ALTER COLUMN, so we handle this in code
+	// by accepting 'system' role in the CHECK constraint in the base schema
 }
 
 // MigrationVersion returns the current schema version.

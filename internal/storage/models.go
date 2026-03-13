@@ -62,6 +62,16 @@ type Role string
 const (
 	RoleUser      Role = "user"
 	RoleAssistant Role = "assistant"
+	RoleSystem    Role = "system" // Used for summary messages
+)
+
+// SummarySource indicates where a summary message originated.
+type SummarySource string
+
+const (
+	SummarySourceNone     SummarySource = ""          // Not a summary message
+	SummarySourceTopic    SummarySource = "topic"     // Summarizes an archived topic
+	SummarySourceWorkUnit SummarySource = "work_unit" // Summarizes a completed work unit
 )
 
 // Message represents a message in the database.
@@ -74,6 +84,16 @@ type Message struct {
 	TokenCount     int       `json:"token_count"`
 	IsArchived     bool      `json:"is_archived"`
 	CreatedAt      time.Time `json:"created_at"`
+
+	// Summary message fields (Phase A: Summary-on-Archive)
+	IsSummary       bool          `json:"is_summary"`                  // TRUE for summary messages
+	SummarySource   SummarySource `json:"summary_source,omitempty"`    // 'topic' or 'work_unit'
+	SummarySourceID *string       `json:"summary_source_id,omitempty"` // topic_id or work_unit_id being summarized
+}
+
+// IsSummaryMessage returns true if this is a summary message that stays in active context.
+func (m *Message) IsSummaryMessage() bool {
+	return m.IsSummary && m.SummarySource != SummarySourceNone
 }
 
 // MessageArchive represents an archived message in cold storage.

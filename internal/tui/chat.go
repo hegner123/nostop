@@ -138,6 +138,7 @@ func NewChatModel(engine *nostop.Nostop, ctx context.Context, width, height int)
 		vpHeight = 5
 	}
 	vp := viewport.New(viewport.WithWidth(width-2), viewport.WithHeight(vpHeight))
+	vp.SetHorizontalStep(0) // disable horizontal scrolling — content is word-wrapped
 	vp.SetContent("")
 
 	return ChatModel{
