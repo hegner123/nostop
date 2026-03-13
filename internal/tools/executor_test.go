@@ -384,7 +384,7 @@ func TestExecutor_SigIntegration(t *testing.T) {
 
 	exec := NewExecutor(reg, "")
 	result := exec.Execute(context.Background(), "sig", map[string]any{
-		"file": "/Users/home/Documents/Code/Go_dev/go_claude/internal/tools/registry.go",
+		"file": "/Users/home/Documents/Code/Go_dev/nostop/internal/tools/registry.go",
 		"all":  false,
 	})
 

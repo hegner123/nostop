@@ -15,7 +15,7 @@ import (
 
 func TestSig_GoFile(t *testing.T) {
 	result := builtinSig(context.Background(), map[string]any{
-		"file": "/Users/home/Documents/Code/Go_dev/go_claude/internal/tools/registry.go",
+		"file": "/Users/home/Documents/Code/Go_dev/nostop/internal/tools/registry.go",
 	}, "")
 
 	if result.IsError {
@@ -49,7 +49,7 @@ func TestSig_GoFile(t *testing.T) {
 
 func TestSig_GoExportedOnly(t *testing.T) {
 	result := builtinSig(context.Background(), map[string]any{
-		"file": "/Users/home/Documents/Code/Go_dev/go_claude/internal/tools/registry.go",
+		"file": "/Users/home/Documents/Code/Go_dev/nostop/internal/tools/registry.go",
 		"all":  false,
 	}, "")
 
@@ -65,7 +65,7 @@ func TestSig_GoExportedOnly(t *testing.T) {
 
 func TestSig_GoIncludePrivate(t *testing.T) {
 	result := builtinSig(context.Background(), map[string]any{
-		"file": "/Users/home/Documents/Code/Go_dev/go_claude/internal/tools/registry.go",
+		"file": "/Users/home/Documents/Code/Go_dev/nostop/internal/tools/registry.go",
 		"all":  true,
 	}, "")
 

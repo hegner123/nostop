@@ -9,7 +9,7 @@ import (
 )
 
 // DevLogPath is the absolute path to the agentic output log during development.
-const DevLogPath = "/Users/home/Documents/Code/Go_dev/go_claude/agent.log"
+const DevLogPath = "/Users/home/Documents/Code/Go_dev/nostop/agent.log"
 
 // AgentLogger writes structured agentic events to a log file.
 // All tool calls, results, and loop iterations are recorded.
