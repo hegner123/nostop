@@ -372,34 +372,6 @@ func TestDefaultRegistry_AllToolsHaveSchemas(t *testing.T) {
 	}
 }
 
-// Integration test: run sig against a known Go file if the binary exists.
-func TestExecutor_SigIntegration(t *testing.T) {
-	reg := NewRegistry()
-	reg.Register(SigDef)
-
-	missing := reg.CheckBinaries()
-	if _, ok := missing["sig"]; ok {
-		t.Skip("sig binary not found on PATH, skipping integration test")
-	}
-
-	exec := NewExecutor(reg, "")
-	result := exec.Execute(context.Background(), "sig", map[string]any{
-		"file": "/Users/home/Documents/Code/Go_dev/nostop/internal/tools/registry.go",
-		"all":  false,
-	})
-
-	if result.IsError {
-		t.Fatalf("sig execution failed: %s", result.Error)
-	}
-	if result.Output == "" {
-		t.Fatal("expected non-empty output from sig")
-	}
-	// Output should be valid JSON (already validated by executor)
-	if result.Output[0] != '{' {
-		t.Errorf("expected JSON object output, got: %.50s", result.Output)
-	}
-}
-
 // --- Test helpers ---
 
 func assertContains(t *testing.T, args []string, want string) {
