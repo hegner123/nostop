@@ -5,6 +5,7 @@
 *.so
 *.dylib
 /rlm
+/nostop
 
 # Test binary
 *.test
@@ -41,5 +42,23 @@ vendor/
 .env
 .env.local
 
-# RLM config (contains API keys)
+# Config (contains API keys)
 rlm.toml
+nostop.toml
+
+# Plans
+NOSTOP_PLAN.md
+HQ_DELEGATION_PLAN.md
+CRUSH_PATTERNS_PLAN.md
+BUILTIN_TOOLS_PLAN.md
+API_REFERENCE.md
+
+# Agent definitions
+AGENTS.md
+
+# Trash / Claude
+.trash/
+.claude/
+
+# Logs
+agent.log
