@@ -21,7 +21,7 @@ type Topic struct {
 	ID             string     `json:"id"`
 	ConversationID string     `json:"conversation_id"`
 	Name           string     `json:"name"`
-	Keywords       []string   `json:"keywords"`        // Stored as JSON in DB
+	Keywords       []string   `json:"keywords"` // Stored as JSON in DB
 	TokenCount     int        `json:"token_count"`
 	RelevanceScore float64    `json:"relevance_score"` // 0.0-1.0
 	IsCurrent      bool       `json:"is_current"`
@@ -70,7 +70,7 @@ type Message struct {
 	ConversationID string    `json:"conversation_id"`
 	TopicID        *string   `json:"topic_id,omitempty"` // NULL if not assigned to a topic
 	Role           Role      `json:"role"`
-	Content        string    `json:"content"`     // JSON array of content blocks
+	Content        string    `json:"content"` // JSON array of content blocks
 	TokenCount     int       `json:"token_count"`
 	IsArchived     bool      `json:"is_archived"`
 	CreatedAt      time.Time `json:"created_at"`

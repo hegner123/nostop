@@ -1,8 +1,8 @@
-# RLM Justfile
+# nostop Justfile
 
-binary_name := "rlm"
+binary_name := "nostop"
 build_dir := "build"
-cmd_dir := "./cmd/rlm"
+cmd_dir := "./cmd/nostop"
 version := `git describe --tags --always --dirty 2>/dev/null || echo "dev"`
 commit := `git rev-parse --short HEAD 2>/dev/null || echo "unknown"`
 build_time := `date -u '+%Y-%m-%d_%H:%M:%S'`
@@ -43,6 +43,7 @@ build-windows:
 # Install to /usr/local/bin
 install: build
     cp {{binary_name}} /usr/local/bin/{{binary_name}}
+    codesign -f -s - /usr/local/bin/{{binary_name}}
 
 # Run tests
 test:

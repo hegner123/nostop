@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/user/rlm/internal/api"
+	"github.com/hegner123/nostop/internal/api"
 )
 
 // DefaultScoringModel is the default model for relevance scoring (fast and cheap).
-const DefaultScoringModel = api.ModelHaiku35Latest
+const DefaultScoringModel = api.ModelHaiku45Latest
 
 // TopicScorer uses Claude to score topic relevance to the current query/context.
 type TopicScorer struct {
@@ -19,7 +19,7 @@ type TopicScorer struct {
 }
 
 // NewTopicScorer creates a new topic scorer.
-// If model is empty, uses claude-3-5-haiku-latest for cost efficiency.
+// If model is empty, uses claude-haiku-4-5-20251001 for cost efficiency.
 func NewTopicScorer(client *api.Client, model string) *TopicScorer {
 	if model == "" {
 		model = DefaultScoringModel

@@ -8,9 +8,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/user/rlm/internal/storage"
-	"github.com/user/rlm/internal/topic"
-	"github.com/user/rlm/pkg/rlm"
+	"github.com/hegner123/nostop/internal/storage"
+	"github.com/hegner123/nostop/internal/topic"
+	"github.com/hegner123/nostop/pkg/nostop"
 )
 
 // TopicsLoadedMsg is sent when topics have been loaded.
@@ -37,7 +37,7 @@ type topicRestoreErrorMsg struct {
 // TopicsModel manages the topics overview view.
 type TopicsModel struct {
 	tracker       *topic.TopicTracker
-	archiver      *rlm.Archiver
+	archiver      *nostop.Archiver
 	convID        string
 	topics        []*storage.Topic
 	archived      []*storage.Topic
@@ -52,7 +52,7 @@ type TopicsModel struct {
 }
 
 // NewTopicsModel creates a new TopicsModel instance.
-func NewTopicsModel(tracker *topic.TopicTracker, archiver *rlm.Archiver, convID string, width, height int) *TopicsModel {
+func NewTopicsModel(tracker *topic.TopicTracker, archiver *nostop.Archiver, convID string, width, height int) *TopicsModel {
 	return &TopicsModel{
 		tracker:       tracker,
 		archiver:      archiver,
@@ -79,6 +79,17 @@ func (m TopicsModel) loadTopics() tea.Cmd {
 	return func() tea.Msg {
 		if m.tracker == nil {
 			return topicsLoadErrorMsg{err: fmt.Errorf("topic tracker not initialized")}
+		}
+
+		// Reload topics from the database so we have fresh state.
+		// Without this, GetTopics() returns stale in-memory data that
+		// may belong to a different conversation or a prior session.
+		if m.convID != "" {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := m.tracker.LoadTopics(ctx, m.convID); err != nil {
+				return topicsLoadErrorMsg{err: fmt.Errorf("failed to reload topics: %w", err)}
+			}
 		}
 
 		// Get active topics from tracker

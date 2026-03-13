@@ -5,15 +5,15 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/user/rlm/internal/storage"
+	"github.com/hegner123/nostop/internal/storage"
 )
 
 // RestorePromptResult is sent when the restore prompt has been answered.
 type RestorePromptResult struct {
-	Topic    *storage.Topic
-	Restore  bool
-	Dismiss  bool
-	Message  string // Original message that triggered the prompt
+	Topic   *storage.Topic
+	Restore bool
+	Dismiss bool
+	Message string // Original message that triggered the prompt
 }
 
 // RestoreNotification represents a notification about a completed restore.
@@ -26,12 +26,12 @@ type RestoreNotification struct {
 
 // RestorePrompt manages the UI for prompting users to restore archived topics.
 type RestorePrompt struct {
-	topics      []*storage.Topic // Topics that may need restoration
-	message     string           // User's message that triggered this
-	visible     bool
-	selected    int              // Which topic is selected (for multiple matches)
-	width       int
-	styles      Styles
+	topics   []*storage.Topic // Topics that may need restoration
+	message  string           // User's message that triggered this
+	visible  bool
+	selected int // Which topic is selected (for multiple matches)
+	width    int
+	styles   Styles
 }
 
 // NewRestorePrompt creates a new RestorePrompt for the given topics.
@@ -372,9 +372,28 @@ func (rcd *RestoreConfirmDialog) HandleKey(key string) (confirmed bool, cancelle
 	return false, false, false
 }
 
-// NotificationManager manages restore notifications in the chat view.
+// NotificationType identifies the kind of notification.
+type NotificationType int
+
+const (
+	NotifyRestore    NotificationType = iota // Archived topic restored
+	NotifyTopicNew                           // New topic identified
+	NotifyTopicShift                         // Topic shift detected
+	NotifyInfo                               // General info
+)
+
+// Notification represents a transient message shown in the chat view.
+type Notification struct {
+	Type       NotificationType
+	Message    string
+	TopicName  string
+	TokenCount int
+	Visible    bool
+}
+
+// NotificationManager manages notifications in the chat view.
 type NotificationManager struct {
-	notifications []RestoreNotification
+	notifications []Notification
 	maxVisible    int
 	styles        Styles
 }
@@ -382,23 +401,49 @@ type NotificationManager struct {
 // NewNotificationManager creates a new notification manager.
 func NewNotificationManager() *NotificationManager {
 	return &NotificationManager{
-		notifications: make([]RestoreNotification, 0),
+		notifications: make([]Notification, 0),
 		maxVisible:    3,
 		styles:        DefaultStyles(),
 	}
 }
 
-// AddRestoreNotification adds a notification about a restored topic.
-func (nm *NotificationManager) AddRestoreNotification(topicName string, tokenCount int) {
-	// Remove old notifications if at max
+// push adds a notification, evicting the oldest if at capacity.
+func (nm *NotificationManager) push(n Notification) {
 	if len(nm.notifications) >= nm.maxVisible {
 		nm.notifications = nm.notifications[1:]
 	}
+	nm.notifications = append(nm.notifications, n)
+}
 
-	nm.notifications = append(nm.notifications, RestoreNotification{
+// AddRestoreNotification adds a notification about a restored topic.
+func (nm *NotificationManager) AddRestoreNotification(topicName string, tokenCount int) {
+	nm.push(Notification{
+		Type:       NotifyRestore,
 		TopicName:  topicName,
 		TokenCount: tokenCount,
 		Visible:    true,
+	})
+}
+
+// AddTopicNotification adds a notification about a new or shifted topic.
+func (nm *NotificationManager) AddTopicNotification(topicName string, isShift bool) {
+	ntype := NotifyTopicNew
+	if isShift {
+		ntype = NotifyTopicShift
+	}
+	nm.push(Notification{
+		Type:      ntype,
+		TopicName: topicName,
+		Visible:   true,
+	})
+}
+
+// AddInfo adds a general informational notification.
+func (nm *NotificationManager) AddInfo(message string) {
+	nm.push(Notification{
+		Type:    NotifyInfo,
+		Message: message,
+		Visible: true,
 	})
 }
 
@@ -425,13 +470,26 @@ func (nm *NotificationManager) View() string {
 			continue
 		}
 
-		notifStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("82")). // Green
-			Italic(true)
+		var style lipgloss.Style
+		var msg string
 
-		tokenStr := formatTokenCount(n.TokenCount)
-		msg := fmt.Sprintf("Restored topic '%s' (%s tokens)", n.TopicName, tokenStr)
-		b.WriteString(notifStyle.Render(msg))
+		switch n.Type {
+		case NotifyRestore:
+			style = lipgloss.NewStyle().Foreground(lipgloss.Color("82")).Italic(true)
+			tokenStr := formatTokenCount(n.TokenCount)
+			msg = fmt.Sprintf("Restored topic '%s' (%s tokens)", n.TopicName, tokenStr)
+		case NotifyTopicNew:
+			style = lipgloss.NewStyle().Foreground(lipgloss.Color("39")).Italic(true)
+			msg = fmt.Sprintf("Topic: %s", n.TopicName)
+		case NotifyTopicShift:
+			style = lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Italic(true)
+			msg = fmt.Sprintf("Topic shifted to: %s", n.TopicName)
+		case NotifyInfo:
+			style = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Italic(true)
+			msg = n.Message
+		}
+
+		b.WriteString(style.Render(msg))
 		b.WriteString("\n")
 	}
 

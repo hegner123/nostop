@@ -1,4 +1,4 @@
-// Package tui provides the Bubbletea-based terminal user interface for RLM.
+// Package tui provides the Bubbletea-based terminal user interface for Nostop.
 package tui
 
 import (
@@ -11,22 +11,24 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/user/rlm/internal/api"
-	"github.com/user/rlm/internal/storage"
-	"github.com/user/rlm/pkg/rlm"
+	"github.com/hegner123/nostop/internal/api"
+	"github.com/hegner123/nostop/internal/storage"
+	"github.com/hegner123/nostop/pkg/nostop"
 )
 
 // ChatMessage represents a message displayed in the chat view.
 type ChatMessage struct {
-	Role    string // "user" or "assistant"
-	Content string
-	Topic   string // topic name when message was sent
+	Role     string // "user", "assistant", "system", or "tool"
+	Content  string
+	Topic    string // topic name when message was sent
+	ToolName string // populated when Role == "tool"
+	IsError  bool   // tool execution error
 }
 
 // ChatModel is the Bubbletea model for the chat view.
 type ChatModel struct {
-	rlm       *rlm.RLM
-	archiver  *rlm.Archiver
+	engine    *nostop.Nostop
+	archiver  *nostop.Archiver
 	convID    string
 	messages  []ChatMessage
 	input     textarea.Model
@@ -41,7 +43,7 @@ type ChatModel struct {
 	topicName string // current topic name
 
 	// Restore prompt integration
-	restorePrompt *RestorePrompt
+	restorePrompt  *RestorePrompt
 	pendingMessage string // Message waiting for restore decision
 	notifications  *NotificationManager
 }
@@ -58,12 +60,26 @@ type StreamChunkMsg struct {
 
 // StreamDoneMsg indicates streaming completed successfully.
 type StreamDoneMsg struct {
-	Response *rlm.Response
+	Response *nostop.Response
 }
 
 // StreamErrorMsg indicates an error during streaming.
 type StreamErrorMsg struct {
 	Err error
+}
+
+// ToolCallMsg indicates a tool invocation has started.
+type ToolCallMsg struct {
+	Name  string
+	ID    string
+	Input map[string]any
+}
+
+// ToolResultMsg indicates a tool invocation has completed.
+type ToolResultMsg struct {
+	Name    string
+	Output  string
+	IsError bool
 }
 
 // ConversationCreatedMsg indicates a new conversation was created.
@@ -79,8 +95,8 @@ type conversationCreatedWithContentMsg struct {
 	Content string
 }
 
-// NewChatModel creates a new ChatModel with the given RLM engine and dimensions.
-func NewChatModel(engine *rlm.RLM, width, height int) ChatModel {
+// NewChatModel creates a new ChatModel with the given Nostop engine and dimensions.
+func NewChatModel(engine *nostop.Nostop, width, height int) ChatModel {
 	// Create textarea for input
 	ta := textarea.New()
 	ta.Placeholder = "Type your message... (Enter to send, Shift+Enter for newline)"
@@ -103,7 +119,7 @@ func NewChatModel(engine *rlm.RLM, width, height int) ChatModel {
 	vp.SetContent("")
 
 	return ChatModel{
-		rlm:           engine,
+		engine:        engine,
 		input:         ta,
 		viewport:      vp,
 		messages:      make([]ChatMessage, 0),
@@ -117,7 +133,7 @@ func NewChatModel(engine *rlm.RLM, width, height int) ChatModel {
 }
 
 // SetArchiver sets the archiver for restore detection.
-func (m *ChatModel) SetArchiver(archiver *rlm.Archiver) {
+func (m *ChatModel) SetArchiver(archiver *nostop.Archiver) {
 	m.archiver = archiver
 }
 
@@ -231,6 +247,45 @@ func (m *ChatModel) Update(msg tea.Msg) (*ChatModel, tea.Cmd) {
 		// Send the original message
 		return m.sendMessageDirectly(msg.Message)
 
+	case ToolCallMsg:
+		// Finalize any in-progress assistant message so intermediate
+		// reasoning is preserved (e.g. "Let me check that file...").
+		// Only remove the placeholder if it's truly empty.
+		if len(m.messages) > 0 {
+			last := m.messages[len(m.messages)-1]
+			if last.Role == "assistant" && m.streaming {
+				if strings.TrimSpace(last.Content) == "" {
+					// Empty placeholder — remove it
+					m.messages = m.messages[:len(m.messages)-1]
+				}
+				// Non-empty assistant text is kept as-is
+				m.streamBuf.Reset()
+			}
+		}
+		m.streaming = false
+
+		m.messages = append(m.messages, ChatMessage{
+			Role:     "tool",
+			ToolName: msg.Name,
+			Content:  fmt.Sprintf("Calling %s...", msg.Name),
+		})
+		m.updateViewport()
+		m.viewport.GotoBottom()
+		return m, waitForStreamMsg
+
+	case ToolResultMsg:
+		// Update the last tool message with the result
+		for i := len(m.messages) - 1; i >= 0; i-- {
+			if m.messages[i].Role == "tool" && m.messages[i].ToolName == msg.Name {
+				m.messages[i].Content = truncateToolOutput(msg.Output, 500)
+				m.messages[i].IsError = msg.IsError
+				break
+			}
+		}
+		m.updateViewport()
+		m.viewport.GotoBottom()
+		return m, waitForStreamMsg
+
 	case StreamStartMsg:
 		Log("StreamStartMsg received - starting streaming")
 		m.streaming = true
@@ -246,13 +301,22 @@ func (m *ChatModel) Update(msg tea.Msg) (*ChatModel, tea.Cmd) {
 		return m, waitForStreamMsg
 
 	case StreamChunkMsg:
-		if m.streaming && len(m.messages) > 0 {
-			// Append to stream buffer
+		// If we're not streaming (e.g. tools just finished and a new
+		// iteration started), create a fresh assistant placeholder.
+		if !m.streaming {
+			m.streaming = true
+			m.streamBuf.Reset()
+			m.messages = append(m.messages, ChatMessage{
+				Role:    "assistant",
+				Content: "",
+				Topic:   m.topicName,
+			})
+		}
+
+		if len(m.messages) > 0 {
 			m.streamBuf.WriteString(msg.Text)
-			// Update last message content
 			m.messages[len(m.messages)-1].Content = m.streamBuf.String()
 			m.updateViewport()
-			// Auto-scroll to bottom
 			m.viewport.GotoBottom()
 		}
 		// Continue reading from stream channel
@@ -262,11 +326,28 @@ func (m *ChatModel) Update(msg tea.Msg) (*ChatModel, tea.Cmd) {
 		Log("StreamDoneMsg received - streaming complete")
 		m.streaming = false
 		if msg.Response != nil && len(m.messages) > 0 {
-			// Update final message content
-			m.messages[len(m.messages)-1].Content = msg.Response.Content
+			// Find the last assistant message to update with final content.
+			// Do NOT blindly overwrite the last message — it may be a tool result.
+			for i := len(m.messages) - 1; i >= 0; i-- {
+				if m.messages[i].Role == "assistant" {
+					// Only update if the final response has content
+					if msg.Response.Content != "" {
+						m.messages[i].Content = msg.Response.Content
+					}
+					break
+				}
+			}
 			// Check for topic shift
 			if msg.Response.TopicShift != nil && msg.Response.TopicShift.Detected {
+				oldTopic := m.topicName
 				m.topicName = msg.Response.TopicShift.NewTopicName
+				if m.notifications != nil {
+					if oldTopic == "" {
+						m.notifications.AddTopicNotification(m.topicName, false)
+					} else {
+						m.notifications.AddTopicNotification(m.topicName, true)
+					}
+				}
 			}
 		}
 		m.updateViewport()
@@ -283,10 +364,10 @@ func (m *ChatModel) Update(msg tea.Msg) (*ChatModel, tea.Cmd) {
 			m.messages = m.messages[:len(m.messages)-1]
 		}
 		// Add a system message with user-friendly error info
-		userMsg := rlm.UserFriendlyMessage(msg.Err)
-		action := rlm.SuggestAction(msg.Err)
-		if action != rlm.ActionNone {
-			userMsg = userMsg + " " + rlm.ActionMessage(action)
+		userMsg := nostop.UserFriendlyMessage(msg.Err)
+		action := nostop.SuggestAction(msg.Err)
+		if action != nostop.ActionNone {
+			userMsg = userMsg + " " + nostop.ActionMessage(action)
 		}
 		m.messages = append(m.messages, ChatMessage{
 			Role:    "system",
@@ -375,17 +456,23 @@ func (m ChatModel) View() string {
 // handleSendMessage processes sending a message.
 func (m *ChatModel) handleSendMessage() (*ChatModel, tea.Cmd) {
 	content := strings.TrimSpace(m.input.Value())
-	Log("handleSendMessage: content=%q convID=%q archiver=%v rlm=%v", content, m.convID, m.archiver != nil, m.rlm != nil)
+	Log("handleSendMessage: content=%q convID=%q archiver=%v engine=%v", content, m.convID, m.archiver != nil, m.engine != nil)
 	if content == "" {
 		Log("handleSendMessage: empty content, ignoring")
 		return m, nil
 	}
 
+	// Vim-style quit commands
+	if content == ":q" || content == ":quit" || content == ":exit" {
+		m.input.Reset()
+		return m, tea.Quit
+	}
+
 	// Check if we have a conversation - create one if not
 	if m.convID == "" {
 		Log("handleSendMessage: no conversation ID - creating new conversation")
-		if m.rlm == nil {
-			Log("handleSendMessage: no RLM engine available")
+		if m.engine == nil {
+			Log("handleSendMessage: no Nostop engine available")
 			return m, nil
 		}
 		// Clear input and create conversation, then send message
@@ -414,7 +501,7 @@ func (m *ChatModel) createConversationAndSend(content string) tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
 		Log("createConversationAndSend: creating conversation")
-		conv, err := m.rlm.NewConversation(ctx, "New Chat", "")
+		conv, err := m.engine.NewConversation(ctx, "New Chat", "")
 		if err != nil {
 			Log("createConversationAndSend: error: %v", err)
 			return StreamErrorMsg{Err: err}
@@ -510,7 +597,7 @@ type RestoreAndSendMsg struct {
 // This is stored globally to allow the waitForStreamMsg command to read from it.
 var streamChan chan tea.Msg
 
-// streamResponse creates a command that streams the response from the RLM engine.
+// streamResponse creates a command that streams the response from the Nostop engine.
 func (m ChatModel) streamResponse(message string) tea.Cmd {
 	return func() tea.Msg {
 		Log("streamResponse: starting stream for convID=%q message=%q", m.convID, message)
@@ -535,10 +622,31 @@ func (m ChatModel) streamResponse(message string) tea.Cmd {
 				return nil
 			}
 
-			// Call RLM.SendStream
+			// Create tool callback for agentic loop events
+			toolCallback := func(event nostop.ToolEvent) {
+				switch event.Type {
+				case nostop.ToolEventStart:
+					// Reset the content builder — intermediate text from
+					// prior iterations is not the final response.
+					finalContent.Reset()
+					streamChan <- ToolCallMsg{
+						Name:  event.Name,
+						ID:    event.ID,
+						Input: event.Input,
+					}
+				case nostop.ToolEventDone, nostop.ToolEventError:
+					streamChan <- ToolResultMsg{
+						Name:    event.Name,
+						Output:  event.Output,
+						IsError: event.IsError,
+					}
+				}
+			}
+
+			// Call Nostop.SendStream
 			ctx := context.Background()
-			Log("streamResponse: calling RLM.SendStream")
-			err := m.rlm.SendStream(ctx, m.convID, message, callback)
+			Log("streamResponse: calling Nostop.SendStream")
+			err := m.engine.SendStream(ctx, m.convID, message, callback, toolCallback)
 			if err != nil {
 				Log("streamResponse: error from SendStream: %v", err)
 				streamChan <- StreamErrorMsg{Err: err}
@@ -547,7 +655,7 @@ func (m ChatModel) streamResponse(message string) tea.Cmd {
 
 			// Create response object
 			Log("streamResponse: stream complete, content length=%d", finalContent.Len())
-			resp := &rlm.Response{
+			resp := &nostop.Response{
 				Content: finalContent.String(),
 			}
 
@@ -618,6 +726,17 @@ func (m ChatModel) renderMessages() string {
 			b.WriteString("\n")
 			content := m.wrapText(msg.Content, maxWidth)
 			b.WriteString(m.styles.SystemMessage.Render(content))
+
+		case "tool":
+			label := m.styles.ToolLabel.Render("Tool: " + msg.ToolName)
+			b.WriteString(label)
+			b.WriteString("\n")
+			content := m.wrapText(msg.Content, maxWidth)
+			if msg.IsError {
+				b.WriteString(m.styles.ToolError.Render(content))
+			} else {
+				b.WriteString(m.styles.ToolOutput.Render(content))
+			}
 		}
 	}
 
@@ -658,6 +777,14 @@ func (m ChatModel) wrapText(text string, maxWidth int) string {
 	}
 
 	return result.String()
+}
+
+// truncateToolOutput truncates tool output for display in the TUI.
+func truncateToolOutput(output string, maxLen int) string {
+	if len(output) <= maxLen {
+		return output
+	}
+	return output[:maxLen] + "\n... (truncated)"
 }
 
 // SetSize updates the chat model dimensions.
@@ -708,11 +835,11 @@ func (m ChatModel) GetTopic() string {
 
 // LoadMessages loads existing messages from storage.
 func (m *ChatModel) LoadMessages(ctx context.Context) error {
-	if m.convID == "" || m.rlm == nil {
+	if m.convID == "" || m.engine == nil {
 		return nil
 	}
 
-	messages, err := m.rlm.GetActiveMessages(ctx, m.convID)
+	messages, err := m.engine.GetActiveMessages(ctx, m.convID)
 	if err != nil {
 		return err
 	}

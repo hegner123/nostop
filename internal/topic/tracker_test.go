@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/user/rlm/internal/storage"
+	"github.com/hegner123/nostop/internal/storage"
 )
 
 func setupTestDB(t *testing.T) (*storage.SQLite, func()) {

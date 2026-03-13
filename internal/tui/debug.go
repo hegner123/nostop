@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strings"
@@ -8,8 +9,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/user/rlm/internal/topic"
-	"github.com/user/rlm/pkg/rlm"
+	"github.com/hegner123/nostop/internal/topic"
+	"github.com/hegner123/nostop/pkg/nostop"
 )
 
 // ArchiveEvent represents a historical archive/restore event.
@@ -22,10 +23,10 @@ type ArchiveEvent struct {
 
 // DebugModel is the model for the debug/context info view.
 type DebugModel struct {
-	contextMgr  *rlm.ContextManager
+	contextMgr  *nostop.ContextManager
 	tracker     *topic.TopicTracker
 	convID      string
-	usage       *rlm.ContextUsage
+	usage       *nostop.ContextUsage
 	width       int
 	height      int
 	autoRefresh bool
@@ -38,7 +39,7 @@ type DebugModel struct {
 
 // ContextUsageMsg carries updated context usage information.
 type ContextUsageMsg struct {
-	Usage *rlm.ContextUsage
+	Usage *nostop.ContextUsage
 }
 
 // RefreshDebugMsg triggers a refresh of debug information.
@@ -53,7 +54,7 @@ type DebugErrorMsg struct {
 }
 
 // NewDebugModel creates a new DebugModel instance.
-func NewDebugModel(contextMgr *rlm.ContextManager, tracker *topic.TopicTracker, convID string, width, height int) *DebugModel {
+func NewDebugModel(contextMgr *nostop.ContextManager, tracker *topic.TopicTracker, convID string, width, height int) *DebugModel {
 	return &DebugModel{
 		contextMgr:  contextMgr,
 		tracker:     tracker,
@@ -164,7 +165,7 @@ func (d DebugModel) renderContextUsage() string {
 	maxTokens := 200000 // default
 	totalTokens := 0
 	usagePercent := 0.0
-	zone := rlm.ZoneNormal
+	zone := nostop.ZoneNormal
 
 	if d.contextMgr != nil {
 		maxTokens = d.contextMgr.MaxTokens()
@@ -305,8 +306,8 @@ func (d DebugModel) renderThresholds() string {
 		maxTokens = d.contextMgr.MaxTokens()
 	}
 
-	archiveTrigger := int(float64(maxTokens) * rlm.ThresholdArchive)
-	archiveTarget := int(float64(maxTokens) * rlm.ArchiveTarget)
+	archiveTrigger := int(float64(maxTokens) * nostop.ThresholdArchive)
+	archiveTarget := int(float64(maxTokens) * nostop.ArchiveTarget)
 
 	totalTokens := 0
 	if d.usage != nil {
@@ -403,15 +404,15 @@ func (d DebugModel) renderMiniBar(percent float64, width int) string {
 }
 
 // getZoneStyle returns the appropriate style for a context zone.
-func (d DebugModel) getZoneStyle(zone rlm.ContextZone) lipgloss.Style {
+func (d DebugModel) getZoneStyle(zone nostop.ContextZone) lipgloss.Style {
 	switch zone {
-	case rlm.ZoneNormal:
+	case nostop.ZoneNormal:
 		return d.styles.Success
-	case rlm.ZoneMonitor:
+	case nostop.ZoneMonitor:
 		return d.styles.Info
-	case rlm.ZoneWarning:
+	case nostop.ZoneWarning:
 		return d.styles.Warning
-	case rlm.ZoneArchive:
+	case nostop.ZoneArchive:
 		return d.styles.Error
 	default:
 		return d.styles.StatusText
@@ -425,7 +426,15 @@ func (d DebugModel) refreshCmd() tea.Cmd {
 			return ContextUsageMsg{Usage: nil}
 		}
 
-		// Get usage without context (nil is fine for display purposes)
+		// Reload topics from the database so the tracker has fresh state.
+		// Without this, GetUsage reads stale in-memory data.
+		if d.tracker != nil && d.convID != "" {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_ = d.tracker.LoadTopics(ctx, d.convID)
+		}
+
+		// Get usage (reads from the now-refreshed tracker)
 		usage, err := d.contextMgr.GetUsage(nil, nil)
 		if err != nil {
 			return DebugErrorMsg{Err: err}
@@ -449,7 +458,7 @@ func (d *DebugModel) SetSize(width, height int) {
 }
 
 // SetUsage sets the context usage directly.
-func (d *DebugModel) SetUsage(usage *rlm.ContextUsage) {
+func (d *DebugModel) SetUsage(usage *nostop.ContextUsage) {
 	d.usage = usage
 }
 

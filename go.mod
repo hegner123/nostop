@@ -1,4 +1,4 @@
-module github.com/user/rlm
+module github.com/hegner123/nostop
 
 go 1.24.0
 

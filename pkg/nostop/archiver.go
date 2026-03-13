@@ -1,5 +1,5 @@
-// Package rlm provides the main RLM engine for intelligent topic-based context archival.
-package rlm
+// Package nostop provides the main Nostop engine for intelligent topic-based context archival.
+package nostop
 
 import (
 	"context"
@@ -8,8 +8,8 @@ import (
 	"log"
 	"strings"
 
-	"github.com/user/rlm/internal/storage"
-	"github.com/user/rlm/internal/topic"
+	"github.com/hegner123/nostop/internal/storage"
+	"github.com/hegner123/nostop/internal/topic"
 )
 
 // Archiver errors.

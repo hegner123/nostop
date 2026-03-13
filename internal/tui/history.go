@@ -9,7 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/user/rlm/internal/storage"
+	"github.com/hegner123/nostop/internal/storage"
 )
 
 // HistoryModel represents the conversation history browser view.

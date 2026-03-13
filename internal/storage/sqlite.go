@@ -11,7 +11,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// SQLite provides SQLite storage operations for the RLM system.
+// SQLite provides SQLite storage operations for the nostop system.
 type SQLite struct {
 	db *sql.DB
 }

@@ -1,10 +1,10 @@
-# RLM HQ Delegation Plan
+# nostop HQ Delegation Plan
 
 ## Overview
 
-This plan coordinates multiple Claude agents to implement the RLM system in parallel using the `concurrent-agent-mcp` (HQ) tool.
+This plan coordinates multiple Claude agents to implement the nostop system in parallel using the `concurrent-agent-mcp` (HQ) tool.
 
-**Project Name**: `rlm-build`
+**Project Name**: `nostop-build`
 **Total Steps**: 20
 **Estimated Agent Parallelism**: Up to 4 concurrent agents
 
@@ -45,7 +45,7 @@ Step 6 (detector)                     Step 7 (tracker)          │
                         └───────────┬───────────────┘            │
                                     │                            │
                                     v                            │
-                              Step 11 (RLM engine) <─────────────┘
+                              Step 11 (nostop engine) <─────────────┘
                                     │
                                     v
                               Step 12 (TUI app)
@@ -89,9 +89,9 @@ Step 17 (cache) Step 18 (restore) Step 19 (config) Step 20 (errors)
 
 | Step | Branch | Scope | Depends | Description |
 |------|--------|-------|---------|-------------|
-| 9 | `feature/context-manager` | rlm | 7 | Context usage tracking, budget calculations |
-| 10 | `feature/archiver` | rlm | 5, 7 | Archive/restore logic for topics |
-| 11 | `feature/rlm-engine` | rlm | 3, 6, 7, 8, 9, 10 | Main RLM orchestrator |
+| 9 | `feature/context-manager` | nostop | 7 | Context usage tracking, budget calculations |
+| 10 | `feature/archiver` | nostop | 5, 7 | Archive/restore logic for topics |
+| 11 | `feature/nostop-engine` | nostop | 3, 6, 7, 8, 9, 10 | Main nostop orchestrator |
 
 ### Phase 4: CLI
 
@@ -139,7 +139,7 @@ Based on dependencies, agents can work in these waves:
 - **Step 10** (archiver) - Can run in parallel!
 
 ### Wave 7 (Engine)
-- **Step 11** (RLM engine) - Integrates everything
+- **Step 11** (nostop engine) - Integrates everything
 
 ### Wave 8 (TUI Foundation)
 - **Step 12** (TUI app) - Entry point
@@ -163,13 +163,13 @@ Each agent should:
 1. **Read context files first**:
    ```
    - START.md (project overview)
-   - RLM_PLAN.md (full implementation details)
+   - nostop_PLAN.md (full implementation details)
    - API_REFERENCE.md (Claude API docs)
    ```
 
 2. **Claim step via HQ**:
    ```
-   mcp__hq__claim_step(project="rlm-build", agent_id="agent-N")
+   mcp__hq__claim_step(project="nostop-build", agent_id="agent-N")
    ```
 
 3. **Start work and heartbeat**:
@@ -187,7 +187,7 @@ Each agent should:
 
 ```json
 {
-  "name": "rlm-build",
+  "name": "nostop-build",
   "base_commit": "<current HEAD>",
   "steps": [
     {"step_num": 1, "branch": "feature/go-mod", "scope": "foundation", "depends_on": []},
@@ -198,9 +198,9 @@ Each agent should:
     {"step_num": 6, "branch": "feature/topic-detector", "scope": "topic", "depends_on": [3]},
     {"step_num": 7, "branch": "feature/topic-tracker", "scope": "topic", "depends_on": [5]},
     {"step_num": 8, "branch": "feature/topic-scorer", "scope": "topic", "depends_on": [6, 7]},
-    {"step_num": 9, "branch": "feature/context-manager", "scope": "rlm", "depends_on": [7]},
-    {"step_num": 10, "branch": "feature/archiver", "scope": "rlm", "depends_on": [5, 7]},
-    {"step_num": 11, "branch": "feature/rlm-engine", "scope": "rlm", "depends_on": [3, 6, 7, 8, 9, 10]},
+    {"step_num": 9, "branch": "feature/context-manager", "scope": "nostop", "depends_on": [7]},
+    {"step_num": 10, "branch": "feature/archiver", "scope": "nostop", "depends_on": [5, 7]},
+    {"step_num": 11, "branch": "feature/nostop-engine", "scope": "nostop", "depends_on": [3, 6, 7, 8, 9, 10]},
     {"step_num": 12, "branch": "feature/tui-app", "scope": "tui", "depends_on": [11]},
     {"step_num": 13, "branch": "feature/tui-chat", "scope": "tui", "depends_on": [4, 12]},
     {"step_num": 14, "branch": "feature/tui-history", "scope": "tui", "depends_on": [5, 12]},
@@ -253,5 +253,5 @@ Before creating the HQ project:
 ## Reference Files
 
 - `START.md` - Quick start guide
-- `RLM_PLAN.md` - Full implementation plan
+- `nostop_PLAN.md` - Full implementation plan
 - `API_REFERENCE.md` - Claude API documentation

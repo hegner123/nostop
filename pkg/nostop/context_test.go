@@ -1,9 +1,9 @@
-package rlm
+package nostop
 
 import (
 	"testing"
 
-	"github.com/user/rlm/internal/api"
+	"github.com/hegner123/nostop/internal/api"
 )
 
 func TestContextZoneString(t *testing.T) {

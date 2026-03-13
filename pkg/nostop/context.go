@@ -1,14 +1,14 @@
-// Package rlm provides the main RLM engine for intelligent topic-based context archival.
-package rlm
+// Package nostop provides the main Nostop engine for intelligent topic-based context archival.
+package nostop
 
 import (
 	"context"
 	"fmt"
 	"sync"
 
-	"github.com/user/rlm/internal/api"
-	"github.com/user/rlm/internal/storage"
-	"github.com/user/rlm/internal/topic"
+	"github.com/hegner123/nostop/internal/api"
+	"github.com/hegner123/nostop/internal/storage"
+	"github.com/hegner123/nostop/internal/topic"
 )
 
 // Context usage thresholds as defined in the plan.

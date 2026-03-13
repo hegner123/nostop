@@ -1,4 +1,4 @@
-# RLM (Recursive Language Model) System Plan
+# nostop (Recursive Language Model) System Plan
 
 ## Overview
 
@@ -9,9 +9,9 @@ A Go library + CLI for intelligent **topic-based context archival** before sendi
 ## Architecture
 
 ```
-rlm/
+nostop/
 ├── cmd/
-│   └── rlm/
+│   └── nostop/
 │       └── main.go              # CLI entry point
 ├── internal/
 │   ├── api/
@@ -32,8 +32,8 @@ rlm/
 │       ├── history.go           # Conversation history view
 │       └── styles.go            # Lipgloss styles
 ├── pkg/
-│   └── rlm/
-│       ├── rlm.go               # Main RLM engine
+│   └── nostop/
+│       ├── nostop.go               # Main nostop engine
 │       ├── context.go           # Context budget management
 │       ├── conversation.go      # Conversation state
 │       └── archiver.go          # Topic archival logic
@@ -92,7 +92,7 @@ func (tt *TopicTracker) RecalculateAllocations(currentTopic string) map[string]f
 func (tt *TopicTracker) GetTopicsToArchive(usagePercent float64) []Topic
 ```
 
-### 3. Archiver (`pkg/rlm/archiver.go`)
+### 3. Archiver (`pkg/nostop/archiver.go`)
 
 Handles moving topics to/from SQLite storage:
 
@@ -200,10 +200,10 @@ CREATE INDEX idx_topics_conversation ON topics(conversation_id);
 CREATE INDEX idx_topics_archived ON topics(archived_at);
 ```
 
-### 6. RLM Engine (`pkg/rlm/rlm.go`)
+### 6. nostop Engine (`pkg/nostop/nostop.go`)
 
 ```go
-type RLM struct {
+type nostop struct {
     client   *api.Client
     storage  *storage.SQLite
     detector *topic.Detector
@@ -223,7 +223,7 @@ type Config struct {
 }
 
 // Core methods
-func (r *RLM) Send(ctx context.Context, convID, message string) (*Response, error) {
+func (r *nostop) Send(ctx context.Context, convID, message string) (*Response, error) {
     // 1. Add user message to current topic
     // 2. Check for topic shift (async, via haiku)
     // 3. Calculate context usage
@@ -233,13 +233,13 @@ func (r *RLM) Send(ctx context.Context, convID, message string) (*Response, erro
     // 7. Store assistant response
 }
 
-func (r *RLM) BuildContext(ctx context.Context, conv *Conversation) ([]api.Message, error) {
+func (r *nostop) BuildContext(ctx context.Context, conv *Conversation) ([]api.Message, error) {
     // Only includes non-archived topics
     // Respects allocation percentages
 }
 ```
 
-### 7. Context Manager (`pkg/rlm/context.go`)
+### 7. Context Manager (`pkg/nostop/context.go`)
 
 ```go
 type ContextManager struct {
@@ -300,9 +300,9 @@ func (cm *ContextManager) ShouldArchive() bool {
 8. [x] Relevance scorer (`internal/topic/scorer.go`) - Claude-based scoring
 
 ### Phase 3: Context Management
-9. [x] Context manager (`pkg/rlm/context.go`) - Usage tracking
-10. [x] Archiver (`pkg/rlm/archiver.go`) - Archive/restore logic
-11. [x] RLM engine (`pkg/rlm/rlm.go`) - Main orchestrator
+9. [x] Context manager (`pkg/nostop/context.go`) - Usage tracking
+10. [x] Archiver (`pkg/nostop/archiver.go`) - Archive/restore logic
+11. [x] nostop engine (`pkg/nostop/nostop.go`) - Main orchestrator
 
 ### Phase 4: CLI
 12. [x] Bubbletea app scaffolding (`internal/tui/app.go`)
@@ -377,7 +377,7 @@ Standard library for HTTP, JSON, SSE parsing.
 - Persistence across restarts
 
 ### Manual Testing
-1. Start CLI: `go run ./cmd/rlm`
+1. Start CLI: `go run ./cmd/nostop`
 2. Have multi-topic conversation (e.g., discuss Go, then switch to Python)
 3. Continue until context approaches 95%
 4. Verify archival triggers, oldest/least-relevant topic archived

@@ -1,4 +1,4 @@
-// Package tui provides the Bubbletea-based terminal user interface for RLM.
+// Package tui provides the Bubbletea-based terminal user interface for nostop.
 package tui
 
 import "github.com/charmbracelet/lipgloss"
@@ -60,9 +60,9 @@ type Styles struct {
 	TopicLabel    lipgloss.Style
 
 	// Panel and border styles
-	Panel         lipgloss.Style
-	PanelTitle    lipgloss.Style
-	BorderActive  lipgloss.Style
+	Panel          lipgloss.Style
+	PanelTitle     lipgloss.Style
+	BorderActive   lipgloss.Style
 	BorderInactive lipgloss.Style
 
 	// Input styles
@@ -76,10 +76,15 @@ type Styles struct {
 	ListItemDim      lipgloss.Style
 
 	// Help and keybinding styles
-	Help       lipgloss.Style
-	HelpKey    lipgloss.Style
-	HelpDesc   lipgloss.Style
-	HelpSep    lipgloss.Style
+	Help     lipgloss.Style
+	HelpKey  lipgloss.Style
+	HelpDesc lipgloss.Style
+	HelpSep  lipgloss.Style
+
+	// Tool styles
+	ToolLabel  lipgloss.Style
+	ToolOutput lipgloss.Style
+	ToolError  lipgloss.Style
 
 	// Debug view styles
 	DebugLabel lipgloss.Style
@@ -259,6 +264,19 @@ func DefaultStyles() Styles {
 
 		HelpSep: lipgloss.NewStyle().
 			Foreground(colorMuted),
+
+		// Tool styles
+		ToolLabel: lipgloss.NewStyle().
+			Bold(true).
+			Foreground(colorMuted),
+
+		ToolOutput: lipgloss.NewStyle().
+			Foreground(colorMuted).
+			PaddingLeft(2),
+
+		ToolError: lipgloss.NewStyle().
+			Foreground(colorError).
+			PaddingLeft(2),
 
 		// Debug view styles
 		DebugLabel: lipgloss.NewStyle().

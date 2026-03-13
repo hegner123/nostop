@@ -1,14 +1,14 @@
-// Package rlm provides the main RLM engine for intelligent topic-based context archival.
-package rlm
+// Package nostop provides the main Nostop engine for intelligent topic-based context archival.
+package nostop
 
 import (
 	"errors"
 	"fmt"
 
-	"github.com/user/rlm/internal/api"
+	"github.com/hegner123/nostop/internal/api"
 )
 
-// Sentinel errors for RLM operations.
+// Sentinel errors for Nostop operations.
 var (
 	// ErrContextFull indicates the context window is full and cannot accept more content.
 	ErrContextFull = errors.New("context window full")
@@ -38,8 +38,8 @@ var (
 	ErrRestoreFailed = errors.New("restore operation failed")
 )
 
-// RLMError wraps errors with context about the operation that failed.
-type RLMError struct {
+// NostopError wraps errors with context about the operation that failed.
+type NostopError struct {
 	// Op is the operation that failed (e.g., "Send", "Archive", "Restore").
 	Op string
 
@@ -60,7 +60,7 @@ type RLMError struct {
 }
 
 // Error implements the error interface.
-func (e *RLMError) Error() string {
+func (e *NostopError) Error() string {
 	if e.Retry {
 		return fmt.Sprintf("%s: %v (after %d attempts)", e.Op, e.Err, e.Attempt)
 	}
@@ -68,18 +68,18 @@ func (e *RLMError) Error() string {
 }
 
 // Unwrap returns the underlying error.
-func (e *RLMError) Unwrap() error {
+func (e *NostopError) Unwrap() error {
 	return e.Err
 }
 
 // Is checks if the error is of a specific type.
-func (e *RLMError) Is(target error) bool {
+func (e *NostopError) Is(target error) bool {
 	return errors.Is(e.Err, target)
 }
 
-// NewRLMError creates a new RLMError with the given operation and error.
-func NewRLMError(op string, err error) *RLMError {
-	rlmErr := &RLMError{
+// NewNostopError creates a new NostopError with the given operation and error.
+func NewNostopError(op string, err error) *NostopError {
+	nostopErr := &NostopError{
 		Op:          op,
 		Err:         err,
 		Attempt:     1,
@@ -89,16 +89,16 @@ func NewRLMError(op string, err error) *RLMError {
 
 	// Check if this came from a retry operation
 	if retryInfo := api.ExtractRetryInfo(err); retryInfo != nil {
-		rlmErr.Retry = retryInfo.Retried
-		rlmErr.Attempt = retryInfo.TotalAttempts
+		nostopErr.Retry = retryInfo.Retried
+		nostopErr.Attempt = retryInfo.TotalAttempts
 	}
 
-	return rlmErr
+	return nostopErr
 }
 
-// WrapError wraps an error with RLM context.
-func WrapError(op string, err error, recoverable bool, userMsg string) *RLMError {
-	return &RLMError{
+// WrapError wraps an error with Nostop context.
+func WrapError(op string, err error, recoverable bool, userMsg string) *NostopError {
+	return &NostopError{
 		Op:          op,
 		Err:         err,
 		Recoverable: recoverable,

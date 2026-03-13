@@ -1,10 +1,10 @@
-# RLM Configuration File
-# Copy this file to rlm.toml and customize as needed
+# nostop Configuration File
+# Copy this file to nostop.toml and customize as needed
 #
 # Config file search order:
-#   1. ./rlm.toml (current directory)
-#   2. ~/.config/rlm/config.toml (XDG)
-#   3. ~/.rlm.toml (home directory)
+#   1. ./nostop.toml (current directory)
+#   2. ~/.config/nostop/config.toml (XDG)
+#   3. ~/.nostop.toml (home directory)
 
 [api]
 # API key for Anthropic Claude API
@@ -22,11 +22,11 @@ timeout = 120
 max_tokens = 200000
 
 # Archive threshold - triggers archival when context usage exceeds this percentage
-# When your conversation reaches 95% of max_tokens, RLM will archive older topics
+# When your conversation reaches 95% of max_tokens, nostop will archive older topics
 archive_threshold = 0.95
 
 # Archive target - archive until context usage drops to this percentage
-# RLM archives topics until usage drops to 50%, giving you room to continue
+# nostop archives topics until usage drops to 50%, giving you room to continue
 archive_target = 0.50
 
 [models]
@@ -39,8 +39,8 @@ detection = "claude-3-5-haiku-latest"
 
 [database]
 # Path to SQLite database for storing archived topics
-# Can also be set via RLM_DB_PATH environment variable
-path = "~/.local/share/rlm/rlm.db"
+# Can also be set via NOSTOP_DB_PATH environment variable
+path = "~/.local/share/nostop/nostop.db"
 
 [ui]
 # UI theme: "dark" or "light"
@@ -48,3 +48,17 @@ theme = "dark"
 
 # Enable auto-refresh in debug view
 auto_refresh = true
+
+[tools]
+# Enable agentic tool use (Claude can call CLI tools during conversations)
+# Requires terse-mcp tools installed on PATH (checkfor, repfor, sig, etc.)
+enabled = false
+
+# Per-tool execution timeout in seconds
+timeout = 30
+
+# Tools to disable (by name) - useful for restricting dangerous tools
+# disabled_tools = ["delete", "repfor"]
+
+# Working directory for tool execution (defaults to current directory)
+# work_dir = "/path/to/project"

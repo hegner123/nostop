@@ -30,14 +30,14 @@ const (
 type ContentBlockType string
 
 const (
-	ContentBlockTypeText           ContentBlockType = "text"
-	ContentBlockTypeImage          ContentBlockType = "image"
-	ContentBlockTypeToolUse        ContentBlockType = "tool_use"
-	ContentBlockTypeToolResult     ContentBlockType = "tool_result"
-	ContentBlockTypeDocument       ContentBlockType = "document"
-	ContentBlockTypeThinking       ContentBlockType = "thinking"
-	ContentBlockTypeRedactedThink  ContentBlockType = "redacted_thinking"
-	ContentBlockTypeServerToolUse  ContentBlockType = "server_tool_use"
+	ContentBlockTypeText            ContentBlockType = "text"
+	ContentBlockTypeImage           ContentBlockType = "image"
+	ContentBlockTypeToolUse         ContentBlockType = "tool_use"
+	ContentBlockTypeToolResult      ContentBlockType = "tool_result"
+	ContentBlockTypeDocument        ContentBlockType = "document"
+	ContentBlockTypeThinking        ContentBlockType = "thinking"
+	ContentBlockTypeRedactedThink   ContentBlockType = "redacted_thinking"
+	ContentBlockTypeServerToolUse   ContentBlockType = "server_tool_use"
 	ContentBlockTypeWebSearchResult ContentBlockType = "web_search_tool_result"
 )
 
@@ -139,7 +139,7 @@ func (t TextBlockParam) SetCacheControl(cache *CacheControl) TextBlockParam {
 
 // Base64ImageSource represents a base64-encoded image.
 type Base64ImageSource struct {
-	Type      string         `json:"type"`       // Always "base64"
+	Type      string         `json:"type"` // Always "base64"
 	MediaType ImageMediaType `json:"media_type"`
 	Data      string         `json:"data"`
 }
@@ -191,11 +191,11 @@ func NewURLImageBlock(url string) ImageBlockParam {
 
 // ToolUseBlockParam represents a tool use block in a request (from assistant).
 type ToolUseBlockParam struct {
-	Type         ContentBlockType       `json:"type"` // Always "tool_use"
-	ID           string                 `json:"id"`
-	Name         string                 `json:"name"`
-	Input        map[string]any         `json:"input"`
-	CacheControl *CacheControl          `json:"cache_control,omitempty"`
+	Type         ContentBlockType `json:"type"` // Always "tool_use"
+	ID           string           `json:"id"`
+	Name         string           `json:"name"`
+	Input        map[string]any   `json:"input"`
+	CacheControl *CacheControl    `json:"cache_control,omitempty"`
 }
 
 // ToolResultBlockParam represents a tool result block in a request (from user).
@@ -230,7 +230,7 @@ func NewToolResultBlockError(toolUseID, errorMsg string) ToolResultBlockParam {
 // ContentBlockParam is a union type for all input content blocks.
 // When marshaling, use the concrete types (TextBlockParam, ImageBlockParam, etc.)
 type ContentBlockParam struct {
-	Type         ContentBlockType `json:"type"`
+	Type ContentBlockType `json:"type"`
 
 	// Text block fields
 	Text string `json:"text,omitempty"`
@@ -428,23 +428,23 @@ type Tool struct {
 
 // Request represents a request to the Messages API.
 type Request struct {
-	Model         string          `json:"model"`
-	Messages      []MessageParam  `json:"messages"`
-	MaxTokens     int             `json:"max_tokens"`
-	System        *SystemParam    `json:"system,omitempty"`
-	StopSequences []string        `json:"stop_sequences,omitempty"`
-	Stream        *bool           `json:"stream,omitempty"`
-	Temperature   *float64        `json:"temperature,omitempty"`
-	TopP          *float64        `json:"top_p,omitempty"`
-	TopK          *int            `json:"top_k,omitempty"`
-	Tools         []Tool          `json:"tools,omitempty"`
-	ToolChoice    *ToolChoice     `json:"tool_choice,omitempty"`
+	Model         string           `json:"model"`
+	Messages      []MessageParam   `json:"messages"`
+	MaxTokens     int              `json:"max_tokens"`
+	System        *SystemParam     `json:"system,omitempty"`
+	StopSequences []string         `json:"stop_sequences,omitempty"`
+	Stream        *bool            `json:"stream,omitempty"`
+	Temperature   *float64         `json:"temperature,omitempty"`
+	TopP          *float64         `json:"top_p,omitempty"`
+	TopK          *int             `json:"top_k,omitempty"`
+	Tools         []Tool           `json:"tools,omitempty"`
+	ToolChoice    *ToolChoice      `json:"tool_choice,omitempty"`
 	Metadata      *RequestMetadata `json:"metadata,omitempty"`
 }
 
 // ToolChoice specifies how Claude should use tools.
 type ToolChoice struct {
-	Type string `json:"type"` // "auto", "any", "tool", "none"
+	Type string `json:"type"`           // "auto", "any", "tool", "none"
 	Name string `json:"name,omitempty"` // Required when type is "tool"
 }
 
@@ -514,12 +514,12 @@ func (r *Response) HasToolUse() bool {
 
 // Usage contains token usage information.
 type Usage struct {
-	InputTokens              int           `json:"input_tokens"`
-	OutputTokens             int           `json:"output_tokens"`
-	CacheCreationInputTokens *int          `json:"cache_creation_input_tokens,omitempty"`
-	CacheReadInputTokens     *int          `json:"cache_read_input_tokens,omitempty"`
+	InputTokens              int            `json:"input_tokens"`
+	OutputTokens             int            `json:"output_tokens"`
+	CacheCreationInputTokens *int           `json:"cache_creation_input_tokens,omitempty"`
+	CacheReadInputTokens     *int           `json:"cache_read_input_tokens,omitempty"`
 	CacheCreation            *CacheCreation `json:"cache_creation,omitempty"`
-	ServiceTier              *string       `json:"service_tier,omitempty"`
+	ServiceTier              *string        `json:"service_tier,omitempty"`
 }
 
 // TotalInputTokens returns the total input tokens including cache tokens.
@@ -565,13 +565,13 @@ type TokenCountResponse struct {
 type ErrorType string
 
 const (
-	ErrorTypeInvalidRequest    ErrorType = "invalid_request_error"
-	ErrorTypeAuthentication    ErrorType = "authentication_error"
-	ErrorTypePermission        ErrorType = "permission_error"
-	ErrorTypeNotFound          ErrorType = "not_found_error"
-	ErrorTypeRateLimit         ErrorType = "rate_limit_error"
-	ErrorTypeAPI               ErrorType = "api_error"
-	ErrorTypeOverloaded        ErrorType = "overloaded_error"
+	ErrorTypeInvalidRequest ErrorType = "invalid_request_error"
+	ErrorTypeAuthentication ErrorType = "authentication_error"
+	ErrorTypePermission     ErrorType = "permission_error"
+	ErrorTypeNotFound       ErrorType = "not_found_error"
+	ErrorTypeRateLimit      ErrorType = "rate_limit_error"
+	ErrorTypeAPI            ErrorType = "api_error"
+	ErrorTypeOverloaded     ErrorType = "overloaded_error"
 )
 
 // APIError represents an error from the Claude API.
@@ -671,13 +671,33 @@ type StreamDelta struct {
 
 // Common model identifiers.
 const (
-	ModelOpus45        = "claude-opus-4-5-20251101"
-	ModelOpus45Latest  = "claude-opus-4-5"
-	ModelSonnet45      = "claude-sonnet-4-5-20250929"
+	ModelOpus45         = "claude-opus-4-5-20251101"
+	ModelOpus45Latest   = "claude-opus-4-5"
+	ModelSonnet45       = "claude-sonnet-4-5-20250929"
 	ModelSonnet45Latest = "claude-sonnet-4-5"
-	ModelSonnet4       = "claude-sonnet-4-20250514"
-	ModelHaiku45       = "claude-haiku-4-5-20251001"
-	ModelHaiku45Latest = "claude-haiku-4-5"
-	ModelHaiku35       = "claude-3-5-haiku-20241022"
-	ModelHaiku35Latest = "claude-3-5-haiku-latest"
+	ModelSonnet4        = "claude-sonnet-4-20250514"
+	ModelHaiku45        = "claude-haiku-4-5-20251001"
+	ModelHaiku45Latest  = "claude-haiku-4-5"
+	ModelHaiku35        = "claude-3-5-haiku-20241022"
+	ModelHaiku35Latest  = "claude-3-5-haiku-latest"
 )
+
+// ----------------------------------------------------------------------------
+// Models API
+// ----------------------------------------------------------------------------
+
+// ModelInfo represents a model returned by the Models API.
+type ModelInfo struct {
+	ID          string `json:"id"`
+	DisplayName string `json:"display_name"`
+	CreatedAt   string `json:"created_at"`
+	Type        string `json:"type"` // Always "model"
+}
+
+// ModelsListResponse is the response from GET /v1/models.
+type ModelsListResponse struct {
+	Data    []ModelInfo `json:"data"`
+	HasMore bool       `json:"has_more"`
+	FirstID string     `json:"first_id"`
+	LastID  string     `json:"last_id"`
+}

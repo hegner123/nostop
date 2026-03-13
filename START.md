@@ -1,29 +1,29 @@
-# RLM Project - Quick Start
+# nostop Project - Quick Start
 
 ## Key Files to Memorize
 
 **Read these files at the start of every session:**
 
-1. **RLM_PLAN.md** - Complete implementation plan with architecture, types, schema, and phases
+1. **nostop_PLAN.md** - Complete implementation plan with architecture, types, schema, and phases
 2. **API_REFERENCE.md** - Full Claude API documentation (Messages API, token counting, streaming, cache control)
 
 ## Project Overview
 
-RLM (Recursive Language Model) is a Go library + CLI for intelligent **topic-based context archival** before sending messages to Claude.
+nostop (Recursive Language Model) is a Go library + CLI for intelligent **topic-based context archival** before sending messages to Claude.
 
 **Core principle**: Archive, don't compact. Full messages are preserved in SQLite, not summarized.
 
 ## Architecture Summary
 
 ```
-rlm/
-├── cmd/rlm/           # CLI entry point (Bubbletea)
+nostop/
+├── cmd/nostop/           # CLI entry point (Bubbletea)
 ├── internal/
 │   ├── api/           # Claude API client, types, streaming
 │   ├── storage/       # SQLite operations, schema, models
 │   ├── topic/         # Topic detection, tracking, scoring
 │   └── tui/           # Bubbletea views (chat, history, topics)
-└── pkg/rlm/           # Main RLM engine (public API)
+└── pkg/nostop/           # Main nostop engine (public API)
 ```
 
 ## Key Concepts
@@ -50,7 +50,7 @@ rlm/
 
 ## Current Status
 
-All 20 implementation steps are complete (Phases 1-5). See RLM_PLAN.md for the full checklist.
+All 20 implementation steps are complete (Phases 1-5). See nostop_PLAN.md for the full checklist.
 
 ## Quick Commands
 
@@ -59,6 +59,6 @@ make build                # Build binary
 make run                  # Build and run
 make test                 # Run tests
 make dev                  # Build with race detector and run
-go run ./cmd/rlm          # Start CLI directly
+go run ./cmd/nostop          # Start CLI directly
 go test ./...             # Run tests directly
 ```

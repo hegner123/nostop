@@ -28,6 +28,7 @@ type Client struct {
 	baseURL     string
 	httpClient  *http.Client
 	retryConfig *RetryConfig
+	resolver    *ModelResolver
 	debug       bool
 }
 
@@ -70,6 +71,20 @@ func WithDefaultRetry() ClientOption {
 	}
 }
 
+// WithModelResolver enables automatic model fallback. When a request fails
+// with a model-not-found error, the resolver tries alternative models in the
+// same capability tier. If static fallbacks are exhausted, it queries the
+// Models API to discover current models.
+func WithModelResolver(resolver *ModelResolver) ClientOption {
+	return func(c *Client) {
+		c.resolver = resolver
+		// Give the resolver the ability to discover models via this client.
+		// The closure captures c (a pointer), so it uses the fully-initialized
+		// client when called later — not the partially-constructed one.
+		resolver.SetDiscoverFunc(c.ListModels)
+	}
+}
+
 // WithDebug enables debug logging for the client.
 func WithDebug(debug bool) ClientOption {
 	return func(c *Client) {
@@ -100,18 +115,24 @@ func NewClient(apiKey string, opts ...ClientOption) *Client {
 // Send sends a message request to the Claude API and returns the response.
 // This is the non-streaming version of the Messages API.
 // If retry is configured, it will automatically retry on retryable errors.
+// If a model resolver is configured, model-not-found errors trigger automatic
+// fallback to alternative models in the same capability tier.
 func (c *Client) Send(ctx context.Context, req *Request) (*Response, error) {
 	// Ensure stream is disabled for non-streaming requests
 	if req.Stream != nil && *req.Stream {
 		return nil, fmt.Errorf("use SendStream for streaming requests")
 	}
 
-	// If retry is not configured, use single attempt
+	return withModelFallback(c.resolver, req, func() (*Response, error) {
+		return c.sendWithRetry(ctx, req)
+	})
+}
+
+// sendWithRetry performs a Send with optional retry logic.
+func (c *Client) sendWithRetry(ctx context.Context, req *Request) (*Response, error) {
 	if c.retryConfig == nil {
 		return c.sendOnce(ctx, req)
 	}
-
-	// Use retry logic
 	return WithRetry(ctx, *c.retryConfig, func() (*Response, error) {
 		return c.sendOnce(ctx, req)
 	})
@@ -318,6 +339,38 @@ func (c *Client) parseErrorWithRetryAfter(statusCode int, body []byte, retryAfte
 	apiErr.RetryAfter = retryAfter
 
 	return &apiErr
+}
+
+// ListModels calls GET /v1/models to discover available models.
+func (c *Client) ListModels(ctx context.Context) ([]ModelInfo, error) {
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/v1/models?limit=1000", nil)
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+
+	c.setHeaders(httpReq)
+
+	httpResp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("list models request: %w", err)
+	}
+	defer httpResp.Body.Close()
+
+	respBody, err := io.ReadAll(httpResp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read response: %w", err)
+	}
+
+	if httpResp.StatusCode != http.StatusOK {
+		return nil, c.parseErrorWithHeaders(httpResp, respBody)
+	}
+
+	var resp ModelsListResponse
+	if err := json.Unmarshal(respBody, &resp); err != nil {
+		return nil, fmt.Errorf("unmarshal models response: %w", err)
+	}
+
+	return resp.Data, nil
 }
 
 // APIKey returns the API key used by this client.

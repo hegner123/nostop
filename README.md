@@ -1,6 +1,6 @@
-# rlm
+# nostop
 
-A Go CLI and library for intelligent topic-based context management when chatting with Claude. Instead of naively truncating conversation history when approaching token limits, RLM detects topic shifts, scores relevance, and archives low-relevance topics to SQLite — preserving full message content for later restoration.
+A Go CLI and library for intelligent topic-based context management when chatting with Claude. Instead of naively truncating conversation history when approaching token limits, nostop detects topic shifts, scores relevance, and archives low-relevance topics to SQLite — preserving full message content for later restoration.
 
 ## Features
 
@@ -21,14 +21,14 @@ A Go CLI and library for intelligent topic-based context management when chattin
 ## Installation
 
 ```bash
-go install github.com/user/rlm/cmd/rlm@latest
+go install github.com/hegner123/nostop/cmd/nostop@latest
 ```
 
 Build from source:
 
 ```bash
-git clone https://github.com/user/rlm.git
-cd rlm
+git clone https://github.com/hegner123/nostop.git
+cd nostop
 just build
 just install
 ```
@@ -44,24 +44,24 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 Start the TUI:
 
 ```bash
-rlm
+nostop
 ```
 
 Generate a default config file:
 
 ```bash
-rlm --write-config
+nostop --write-config
 ```
 
 ### Configuration
 
-RLM searches for config files in order:
+nostop searches for config files in order:
 
-1. `./rlm.toml`
-2. `~/.config/rlm/config.toml`
-3. `~/.rlm.toml`
+1. `./nostop.toml`
+2. `~/.config/nostop/config.toml`
+3. `~/.nostop.toml`
 
-Key settings in `rlm.toml`:
+Key settings in `nostop.toml`:
 
 ```toml
 [context]
@@ -87,10 +87,10 @@ detection = "claude-3-5-haiku-latest"
 
 ### Library Usage
 
-RLM can be used as a Go library:
+nostop can be used as a Go library:
 
 ```go
-engine, err := rlm.New(rlm.Config{
+engine, err := nostop.New(nostop.Config{
     APIKey:           os.Getenv("ANTHROPIC_API_KEY"),
     DBPath:           "conversations.db",
     MaxContextTokens: 200000,

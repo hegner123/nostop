@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/user/rlm/internal/storage"
+	"github.com/hegner123/nostop/internal/storage"
 )
 
 // TopicTracker manages topic state and context allocation.

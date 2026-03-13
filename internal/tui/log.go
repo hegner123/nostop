@@ -23,7 +23,7 @@ var (
 )
 
 // InitLogger initializes the debug logger.
-// If path is empty, uses ~/.local/share/rlm/debug.log
+// If path is empty, uses ~/.local/share/nostop/debug.log
 func InitLogger(path string, enabled bool) error {
 	var initErr error
 	debugOnce.Do(func() {
@@ -38,7 +38,7 @@ func InitLogger(path string, enabled bool) error {
 				initErr = err
 				return
 			}
-			path = filepath.Join(home, ".local", "share", "rlm", "debug.log")
+			path = filepath.Join(home, ".local", "share", "nostop", "debug.log")
 		}
 
 		// Ensure directory exists
@@ -67,7 +67,7 @@ func (l *Logger) writeHeader() {
 	if l.file == nil {
 		return
 	}
-	header := fmt.Sprintf("\n%s\n=== RLM Debug Session Started at %s ===\n%s\n",
+	header := fmt.Sprintf("\n%s\n=== nostop Debug Session Started at %s ===\n%s\n",
 		"════════════════════════════════════════════════════════════",
 		time.Now().Format("2006-01-02 15:04:05"),
 		"════════════════════════════════════════════════════════════")

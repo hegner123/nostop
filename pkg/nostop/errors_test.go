@@ -1,15 +1,15 @@
-package rlm
+package nostop
 
 import (
 	"errors"
 	"testing"
 
-	"github.com/user/rlm/internal/api"
+	"github.com/hegner123/nostop/internal/api"
 )
 
-func TestRLMError(t *testing.T) {
+func TestNostopError(t *testing.T) {
 	underlying := errors.New("underlying error")
-	rlmErr := &RLMError{
+	nostopErr := &NostopError{
 		Op:          "Send",
 		Err:         underlying,
 		Retry:       true,
@@ -19,7 +19,7 @@ func TestRLMError(t *testing.T) {
 	}
 
 	// Test Error() method
-	errStr := rlmErr.Error()
+	errStr := nostopErr.Error()
 	if errStr == "" {
 		t.Error("Error() should return non-empty string")
 	}
@@ -28,20 +28,20 @@ func TestRLMError(t *testing.T) {
 	}
 
 	// Test Unwrap()
-	unwrapped := rlmErr.Unwrap()
+	unwrapped := nostopErr.Unwrap()
 	if unwrapped != underlying {
 		t.Error("Unwrap() should return underlying error")
 	}
 
 	// Test Is()
-	if !errors.Is(rlmErr, underlying) {
+	if !errors.Is(nostopErr, underlying) {
 		t.Error("errors.Is should work with underlying error")
 	}
 }
 
-func TestRLMError_NoRetry(t *testing.T) {
+func TestNostopError_NoRetry(t *testing.T) {
 	underlying := errors.New("underlying error")
-	rlmErr := &RLMError{
+	nostopErr := &NostopError{
 		Op:          "Archive",
 		Err:         underlying,
 		Retry:       false,
@@ -50,27 +50,27 @@ func TestRLMError_NoRetry(t *testing.T) {
 		UserMessage: "Archive failed",
 	}
 
-	errStr := rlmErr.Error()
+	errStr := nostopErr.Error()
 	if errStr != "Archive: underlying error" {
 		t.Errorf("unexpected error string: %s", errStr)
 	}
 }
 
-func TestNewRLMError(t *testing.T) {
+func TestNewNostopError(t *testing.T) {
 	apiErr := &api.APIError{
 		Type:         "error",
 		ErrorDetails: api.ErrorDetail{Type: api.ErrorTypeRateLimit, Message: "rate limited"},
 	}
 
-	rlmErr := NewRLMError("Send", apiErr)
+	nostopErr := NewNostopError("Send", apiErr)
 
-	if rlmErr.Op != "Send" {
-		t.Errorf("expected Op='Send', got '%s'", rlmErr.Op)
+	if nostopErr.Op != "Send" {
+		t.Errorf("expected Op='Send', got '%s'", nostopErr.Op)
 	}
-	if !errors.Is(rlmErr, apiErr) {
+	if !errors.Is(nostopErr, apiErr) {
 		t.Error("should wrap the API error")
 	}
-	if !rlmErr.Recoverable {
+	if !nostopErr.Recoverable {
 		t.Error("rate limit error should be recoverable")
 	}
 }

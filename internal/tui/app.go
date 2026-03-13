@@ -7,8 +7,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/user/rlm/internal/topic"
-	"github.com/user/rlm/pkg/rlm"
+	"github.com/hegner123/nostop/internal/topic"
+	"github.com/hegner123/nostop/pkg/nostop"
 )
 
 // View represents the current active view in the application.
@@ -69,10 +69,10 @@ func (v View) String() string {
 // Debug view specific:
 //   - r: Refresh context info
 
-// App is the main Bubbletea model for the RLM TUI application.
+// App is the main Bubbletea model for the Nostop TUI application.
 type App struct {
-	// rlm is the RLM engine instance.
-	rlm *rlm.RLM
+	// engine is the Nostop engine instance.
+	engine *nostop.Nostop
 
 	// view is the currently active view.
 	view View
@@ -105,13 +105,13 @@ type App struct {
 	debugModel *DebugModel
 
 	// contextMgr is the context manager for token tracking.
-	contextMgr *rlm.ContextManager
+	contextMgr *nostop.ContextManager
 
 	// tracker is the topic tracker.
 	tracker *topic.TopicTracker
 
 	// archiver is the topic archiver for restoration.
-	archiver *rlm.Archiver
+	archiver *nostop.Archiver
 
 	// topicsModel is the topics overview view model.
 	topicsModel *TopicsModel
@@ -120,10 +120,10 @@ type App struct {
 	history *HistoryModel
 }
 
-// NewApp creates a new App instance with the given RLM engine.
-func NewApp(engine *rlm.RLM) *App {
+// NewApp creates a new App instance with the given Nostop engine.
+func NewApp(engine *nostop.Nostop) *App {
 	return &App{
-		rlm:    engine,
+		engine: engine,
 		view:   ViewChat,
 		styles: DefaultStyles(),
 	}
@@ -131,7 +131,7 @@ func NewApp(engine *rlm.RLM) *App {
 
 // Init implements tea.Model. It returns any initial commands.
 func (a App) Init() tea.Cmd {
-	Log("App.Init called - chatModel=%v, rlm=%v", a.chatModel != nil, a.rlm != nil)
+	Log("App.Init called - chatModel=%v, engine=%v", a.chatModel != nil, a.engine != nil)
 	// chatModel is initialized on first WindowSizeMsg
 	return nil
 }
@@ -151,8 +151,8 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Initialize or update chat model
 		if a.chatModel == nil {
-			Log("Initializing chatModel: rlm=%v width=%d contentHeight=%d", a.rlm != nil, msg.Width-4, contentHeight)
-			cm := NewChatModel(a.rlm, msg.Width-4, contentHeight)
+			Log("Initializing chatModel: engine=%v width=%d contentHeight=%d", a.engine != nil, msg.Width-4, contentHeight)
+			cm := NewChatModel(a.engine, msg.Width-4, contentHeight)
 			a.chatModel = &cm
 			Log("chatModel initialized: %v", a.chatModel != nil)
 			cmds = append(cmds, a.chatModel.Init())
@@ -161,8 +161,8 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.chatModel.SetSize(msg.Width-4, contentHeight)
 		}
 
-		if a.history == nil && a.rlm != nil {
-			a.history = NewHistoryModel(a.rlm.Storage(), msg.Width-4, contentHeight)
+		if a.history == nil && a.engine != nil {
+			a.history = NewHistoryModel(a.engine.Storage(), msg.Width-4, contentHeight)
 			cmds = append(cmds, a.history.Init())
 		} else if a.history != nil {
 			a.history.SetSize(msg.Width-4, contentHeight)
@@ -179,6 +179,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Initialize or update debug model with new dimensions
 		if a.debugModel == nil {
 			a.debugModel = NewDebugModel(a.contextMgr, a.tracker, a.convID, msg.Width-4, contentHeight)
+			cmds = append(cmds, a.debugModel.Init())
 		} else {
 			a.debugModel.SetSize(msg.Width-4, contentHeight)
 		}
@@ -282,6 +283,36 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.chatModel, cmd = a.chatModel.Update(msg)
 		// Sync conversation ID from chat model
 		a.convID = a.chatModel.GetConversation()
+
+		// On stream completion, propagate conversation ID to sub-models
+		// and trigger a refresh so topics and context usage are up-to-date.
+		if _, ok := msg.(StreamDoneMsg); ok && a.convID != "" {
+			var cmds []tea.Cmd
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+			if a.debugModel != nil {
+				a.debugModel.SetConversation(a.convID)
+				cmds = append(cmds, a.debugModel.refreshCmd())
+			}
+			if a.topicsModel != nil {
+				cmds = append(cmds, a.topicsModel.SetConversation(a.convID))
+			}
+			// If the chat model doesn't have a topic yet, pull it from
+			// the tracker and show a notification. This covers the initial
+			// topic creation which doesn't come through as a TopicShift.
+			if a.chatModel.GetTopic() == "" && a.tracker != nil {
+				if current := a.tracker.GetCurrentTopic(); current != nil {
+					a.chatModel.SetTopic(current.Name)
+					if a.chatModel.notifications != nil {
+						a.chatModel.notifications.AddTopicNotification(current.Name, false)
+					}
+					a.chatModel.updateViewport()
+				}
+			}
+			return a, tea.Batch(cmds...)
+		}
+
 		return a, cmd
 
 	case ConversationCreatedMsg:
@@ -410,8 +441,8 @@ func (a App) View() string {
 
 // renderHeader renders the application header with view tabs.
 func (a App) renderHeader() string {
-	title := a.styles.Title.Render("RLM")
-	subtitle := a.styles.StatusText.Render(" - Recursive Language Model")
+	title := a.styles.Title.Render("nostop")
+	subtitle := a.styles.StatusText.Render("")
 
 	// Render view tabs
 	tabs := make([]string, 4)
@@ -707,10 +738,10 @@ func (a App) updateCurrentView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // handleNewConversation creates a new conversation.
 func (a App) handleNewConversation() (tea.Model, tea.Cmd) {
-	Log("handleNewConversation: rlm=%v current convID=%q", a.rlm != nil, a.convID)
+	Log("handleNewConversation: engine=%v current convID=%q", a.engine != nil, a.convID)
 
-	if a.rlm == nil {
-		Log("handleNewConversation: no RLM engine")
+	if a.engine == nil {
+		Log("handleNewConversation: no Nostop engine")
 		return a, nil
 	}
 
@@ -719,7 +750,7 @@ func (a App) handleNewConversation() (tea.Model, tea.Cmd) {
 	// Create new conversation asynchronously
 	return a, func() tea.Msg {
 		ctx := context.Background()
-		conv, err := a.rlm.NewConversation(ctx, "New Chat", "")
+		conv, err := a.engine.NewConversation(ctx, "New Chat", "")
 		if err != nil {
 			Log("handleNewConversation: error creating conversation: %v", err)
 			return errMsg{err: err}
@@ -752,9 +783,9 @@ func (a *App) ClearError() {
 	a.err = nil
 }
 
-// RLM returns the underlying RLM engine.
-func (a *App) RLM() *rlm.RLM {
-	return a.rlm
+// Nostop returns the underlying Nostop engine.
+func (a *App) Nostop() *nostop.Nostop {
+	return a.engine
 }
 
 // SetTracker sets the topic tracker.
@@ -763,7 +794,7 @@ func (a *App) SetTracker(tracker *topic.TopicTracker) {
 }
 
 // SetArchiver sets the topic archiver.
-func (a *App) SetArchiver(archiver *rlm.Archiver) {
+func (a *App) SetArchiver(archiver *nostop.Archiver) {
 	a.archiver = archiver
 	// Also set on chat model for restore detection
 	if a.chatModel != nil {
@@ -777,12 +808,12 @@ func (a *App) Tracker() *topic.TopicTracker {
 }
 
 // Archiver returns the topic archiver.
-func (a *App) Archiver() *rlm.Archiver {
+func (a *App) Archiver() *nostop.Archiver {
 	return a.archiver
 }
 
 // SetContextManager sets the context manager.
-func (a *App) SetContextManager(mgr *rlm.ContextManager) {
+func (a *App) SetContextManager(mgr *nostop.ContextManager) {
 	a.contextMgr = mgr
 	if a.debugModel != nil {
 		a.debugModel = NewDebugModel(mgr, a.tracker, a.convID, a.width-4, a.height-6)
@@ -790,7 +821,7 @@ func (a *App) SetContextManager(mgr *rlm.ContextManager) {
 }
 
 // ContextManager returns the context manager.
-func (a *App) ContextManager() *rlm.ContextManager {
+func (a *App) ContextManager() *nostop.ContextManager {
 	return a.contextMgr
 }
 
@@ -832,7 +863,7 @@ func truncate(s string, length int) string {
 // loadChatMessages loads messages for the current conversation into the chat model.
 func (a *App) loadChatMessages() tea.Cmd {
 	return func() tea.Msg {
-		if a.convID == "" || a.rlm == nil || a.chatModel == nil {
+		if a.convID == "" || a.engine == nil || a.chatModel == nil {
 			return nil
 		}
 		ctx := context.Background()

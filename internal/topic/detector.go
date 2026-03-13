@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/user/rlm/internal/api"
+	"github.com/hegner123/nostop/internal/api"
 )
 
 // Default model for topic detection (fast and cheap).
-const DefaultDetectionModel = api.ModelHaiku35Latest
+const DefaultDetectionModel = api.ModelHaiku45Latest
 
 // TopicDetector uses Claude to detect and identify conversation topics.
 type TopicDetector struct {
@@ -20,7 +20,7 @@ type TopicDetector struct {
 }
 
 // NewTopicDetector creates a new topic detector.
-// If model is empty, uses claude-3-5-haiku-latest for fast, cheap detection.
+// If model is empty, uses claude-haiku-4-5-20251001 for fast, cheap detection.
 func NewTopicDetector(client *api.Client, model string) *TopicDetector {
 	if model == "" {
 		model = DefaultDetectionModel
@@ -33,15 +33,15 @@ func NewTopicDetector(client *api.Client, model string) *TopicDetector {
 
 // Topic represents a conversation topic with its metadata.
 type Topic struct {
-	ID          string     `json:"id"`
-	Name        string     `json:"name"`
-	Keywords    []string   `json:"keywords"`
-	StartMsgID  string     `json:"start_msg_id"`
-	EndMsgID    *string    `json:"end_msg_id,omitempty"` // nil if topic is current
-	TokenCount  int        `json:"token_count"`
-	Relevance   float64    `json:"relevance"` // 0.0-1.0
-	CreatedAt   time.Time  `json:"created_at"`
-	ArchivedAt  *time.Time `json:"archived_at,omitempty"`
+	ID         string     `json:"id"`
+	Name       string     `json:"name"`
+	Keywords   []string   `json:"keywords"`
+	StartMsgID string     `json:"start_msg_id"`
+	EndMsgID   *string    `json:"end_msg_id,omitempty"` // nil if topic is current
+	TokenCount int        `json:"token_count"`
+	Relevance  float64    `json:"relevance"` // 0.0-1.0
+	CreatedAt  time.Time  `json:"created_at"`
+	ArchivedAt *time.Time `json:"archived_at,omitempty"`
 }
 
 // IsActive returns true if the topic is currently active (not ended).
@@ -56,11 +56,11 @@ func (t *Topic) IsArchived() bool {
 
 // TopicShift represents a detected shift in conversation topic.
 type TopicShift struct {
-	Detected      bool     `json:"detected"`
-	NewTopicName  string   `json:"new_topic_name,omitempty"`
-	NewKeywords   []string `json:"new_keywords,omitempty"`
-	Confidence    float64  `json:"confidence"` // 0.0-1.0
-	Reason        string   `json:"reason,omitempty"`
+	Detected     bool     `json:"detected"`
+	NewTopicName string   `json:"new_topic_name,omitempty"`
+	NewKeywords  []string `json:"new_keywords,omitempty"`
+	Confidence   float64  `json:"confidence"` // 0.0-1.0
+	Reason       string   `json:"reason,omitempty"`
 }
 
 // Message is a simplified message for topic analysis.

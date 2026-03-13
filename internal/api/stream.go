@@ -16,9 +16,9 @@ import (
 // StreamReader reads Server-Sent Events from a Claude API streaming response.
 // It parses the SSE format and returns typed StreamEvent objects.
 type StreamReader struct {
-	reader  *bufio.Reader
-	body    io.ReadCloser
-	closed  bool
+	reader *bufio.Reader
+	body   io.ReadCloser
+	closed bool
 }
 
 // NewStreamReader creates a new StreamReader from an io.ReadCloser (typically an HTTP response body).
@@ -62,7 +62,7 @@ func (s *StreamReader) Next() (*StreamEvent, error) {
 		// Check for error events
 		if event.Type == StreamEventError && event.Error != nil {
 			return event, &APIError{
-				Type: "error",
+				Type:         "error",
 				ErrorDetails: *event.Error,
 			}
 		}
@@ -291,11 +291,20 @@ func (s *StreamReader) parseEvent(eventType, data string) (*StreamEvent, error) 
 
 // Stream sends a request to the Claude API and returns a StreamReader for processing events.
 // The caller is responsible for closing the StreamReader when done.
+// If a model resolver is configured, model-not-found errors trigger automatic
+// fallback to alternative models in the same capability tier.
 func (c *Client) Stream(ctx context.Context, req *Request) (*StreamReader, error) {
 	// Enable streaming
 	streamTrue := true
 	req.Stream = &streamTrue
 
+	return withModelFallback(c.resolver, req, func() (*StreamReader, error) {
+		return c.streamOnce(ctx, req)
+	})
+}
+
+// streamOnce performs a single streaming request without model fallback.
+func (c *Client) streamOnce(ctx context.Context, req *Request) (*StreamReader, error) {
 	// Marshal request body
 	body, err := json.Marshal(req)
 	if err != nil {

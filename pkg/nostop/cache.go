@@ -1,10 +1,11 @@
-// Package rlm provides the main RLM engine for intelligent topic-based context archival.
-package rlm
+// Package nostop provides the main Nostop engine for intelligent topic-based context archival.
+package nostop
 
 import (
+	"sync"
 	"time"
 
-	"github.com/user/rlm/internal/api"
+	"github.com/hegner123/nostop/internal/api"
 )
 
 // CacheStrategy defines the caching approach for different content types.
@@ -101,14 +102,14 @@ func (cs *CacheStrategy) ApplyToTopicContext(content string) api.TextBlockParam 
 }
 
 // CacheStats tracks cache performance metrics from API responses.
-// These stats help monitor the effectiveness of caching and estimate cost savings.
+// All methods are safe for concurrent use.
 type CacheStats struct {
+	mu sync.RWMutex
+
 	// CacheCreationTokens is the total tokens used to create cache entries.
-	// This represents the "write" cost of caching.
 	CacheCreationTokens int `json:"cache_creation_tokens"`
 
 	// CacheReadTokens is the total tokens read from cache entries.
-	// This represents successful cache hits.
 	CacheReadTokens int `json:"cache_read_tokens"`
 
 	// CacheCreation5m is the tokens used for 5-minute cache entries.
@@ -131,6 +132,9 @@ func NewCacheStats() *CacheStats {
 
 // Update adds usage information from an API response to the stats.
 func (cs *CacheStats) Update(usage api.Usage) {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+
 	cs.TotalRequests++
 
 	if usage.CacheCreationInputTokens != nil {
@@ -151,14 +155,16 @@ func (cs *CacheStats) Update(usage api.Usage) {
 }
 
 // EstimatedSavings estimates the tokens saved through caching.
-// Saved tokens = cache reads (since they don't count against input tokens).
 func (cs *CacheStats) EstimatedSavings() int {
+	cs.mu.RLock()
+	defer cs.mu.RUnlock()
 	return cs.CacheReadTokens
 }
 
 // HitRate returns the cache hit rate as a percentage (0.0-1.0).
-// Returns 0 if no requests have been made.
 func (cs *CacheStats) HitRate() float64 {
+	cs.mu.RLock()
+	defer cs.mu.RUnlock()
 	if cs.TotalRequests == 0 {
 		return 0
 	}
@@ -167,6 +173,8 @@ func (cs *CacheStats) HitRate() float64 {
 
 // Reset clears all accumulated stats.
 func (cs *CacheStats) Reset() {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
 	cs.CacheCreationTokens = 0
 	cs.CacheReadTokens = 0
 	cs.CacheCreation5m = 0
@@ -177,6 +185,8 @@ func (cs *CacheStats) Reset() {
 
 // Clone returns a copy of the CacheStats.
 func (cs *CacheStats) Clone() *CacheStats {
+	cs.mu.RLock()
+	defer cs.mu.RUnlock()
 	return &CacheStats{
 		CacheCreationTokens: cs.CacheCreationTokens,
 		CacheReadTokens:     cs.CacheReadTokens,

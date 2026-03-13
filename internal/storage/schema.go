@@ -1,4 +1,4 @@
-// Package storage provides SQLite storage for the RLM system.
+// Package storage provides SQLite storage for the nostop system.
 package storage
 
 // Schema contains the SQL statements for creating the database schema.

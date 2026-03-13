@@ -1,20 +1,21 @@
-// Package rlm provides configuration file support for RLM.
-package rlm
+// Package nostop provides configuration file support for Nostop.
+package nostop
 
 import (
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/user/rlm/internal/api"
+	"github.com/hegner123/nostop/internal/api"
 )
 
 // Config file locations (in order of precedence):
-// 1. ./rlm.toml (current directory)
-// 2. ~/.config/rlm/config.toml (XDG)
-// 3. ~/.rlm.toml (home directory)
+// 1. ./nostop.toml (current directory)
+// 2. ~/.config/nostop/config.toml (XDG)
+// 3. ~/.nostop.toml (home directory)
 
 // FileConfig represents the structure of the TOML configuration file.
 type FileConfig struct {
@@ -23,6 +24,15 @@ type FileConfig struct {
 	Models   ModelsConfig   `toml:"models"`
 	Database DatabaseConfig `toml:"database"`
 	UI       UIConfig       `toml:"ui"`
+	Tools    ToolsConfig    `toml:"tools"`
+}
+
+// ToolsConfig contains configuration for agentic tool use.
+type ToolsConfig struct {
+	Enabled       bool     `toml:"enabled"`
+	Timeout       int      `toml:"timeout"` // seconds per tool execution
+	DisabledTools []string `toml:"disabled_tools"`
+	WorkDir       string   `toml:"work_dir"`
 }
 
 // APIConfig contains API-related configuration.
@@ -41,13 +51,13 @@ type ContextConfig struct {
 
 // ModelsConfig contains model selection configuration.
 type ModelsConfig struct {
-	Chat      string `toml:"chat"`      // Default: claude-sonnet-4-20250514
-	Detection string `toml:"detection"` // Default: claude-3-5-haiku-latest
+	Chat      string `toml:"chat"`      // Default: claude-opus-4-5-20251101
+	Detection string `toml:"detection"` // Default: claude-haiku-4-5-20251001
 }
 
 // DatabaseConfig contains database configuration.
 type DatabaseConfig struct {
-	Path string `toml:"path"` // Default: ~/.local/share/rlm/rlm.db
+	Path string `toml:"path"` // Default: ~/.local/share/nostop/nostop.db
 }
 
 // UIConfig contains UI-related configuration.
@@ -69,10 +79,10 @@ func DefaultFileConfig() FileConfig {
 		},
 		Models: ModelsConfig{
 			Chat:      api.ModelSonnet4,
-			Detection: api.ModelHaiku35Latest,
+			Detection: api.ModelHaiku45Latest,
 		},
 		Database: DatabaseConfig{
-			Path: "~/.local/share/rlm/rlm.db",
+			Path: "~/.local/share/nostop/nostop.db",
 		},
 		UI: UIConfig{
 			Theme:       "dark",
@@ -82,7 +92,7 @@ func DefaultFileConfig() FileConfig {
 }
 
 // LoadConfig loads configuration from the first found config file.
-// It searches in order: ./rlm.toml, ~/.config/rlm/config.toml, ~/.rlm.toml
+// It searches in order: ./nostop.toml, ~/.config/nostop/config.toml, ~/.nostop.toml
 // Returns the loaded config and the path it was loaded from (empty if no file found).
 func LoadConfig() (*FileConfig, string, error) {
 	return LoadConfigWithPath("")
@@ -125,7 +135,7 @@ func getConfigPaths() []string {
 	var paths []string
 
 	// 1. Current directory
-	paths = append(paths, "rlm.toml")
+	paths = append(paths, "nostop.toml")
 
 	// 2. XDG config directory
 	configHome := os.Getenv("XDG_CONFIG_HOME")
@@ -136,13 +146,13 @@ func getConfigPaths() []string {
 		}
 	}
 	if configHome != "" {
-		paths = append(paths, filepath.Join(configHome, "rlm", "config.toml"))
+		paths = append(paths, filepath.Join(configHome, "nostop", "config.toml"))
 	}
 
 	// 3. Home directory
 	home, err := os.UserHomeDir()
 	if err == nil {
-		paths = append(paths, filepath.Join(home, ".rlm.toml"))
+		paths = append(paths, filepath.Join(home, ".nostop.toml"))
 	}
 
 	return paths
@@ -160,9 +170,9 @@ func expandPath(path string) string {
 	return path
 }
 
-// ToRLMConfig converts a FileConfig to the RLM engine Config.
+// ToNostopConfig converts a FileConfig to the Nostop engine Config.
 // It applies environment variable overrides.
-func (fc *FileConfig) ToRLMConfig() Config {
+func (fc *FileConfig) ToNostopConfig() Config {
 	cfg := Config{
 		MaxContextTokens: fc.Context.MaxTokens,
 		ArchiveThreshold: fc.Context.ArchiveThreshold,
@@ -178,9 +188,18 @@ func (fc *FileConfig) ToRLMConfig() Config {
 		cfg.APIKey = envKey
 	}
 
-	if envDBPath := os.Getenv("RLM_DB_PATH"); envDBPath != "" {
+	if envDBPath := os.Getenv("NOSTOP_DB_PATH"); envDBPath != "" {
 		cfg.DBPath = expandPath(envDBPath)
 	}
+
+	// Tools configuration
+	cfg.ToolsEnabled = fc.Tools.Enabled
+	cfg.DisabledTools = fc.Tools.DisabledTools
+	cfg.ToolTimeout = time.Duration(fc.Tools.Timeout) * time.Second
+	if cfg.ToolTimeout == 0 {
+		cfg.ToolTimeout = 30 * time.Second
+	}
+	cfg.ToolWorkDir = fc.Tools.WorkDir
 
 	return cfg
 }
@@ -219,8 +238,8 @@ func WriteDefaultConfig(path string) error {
 
 // defaultConfigTemplate returns the default config file content with comments.
 func defaultConfigTemplate() string {
-	return `# RLM Configuration File
-# https://github.com/user/rlm
+	return `# Nostop Configuration File
+# https://github.com/hegner123/nostop
 
 [api]
 # API key for Anthropic Claude API
@@ -245,15 +264,15 @@ archive_target = 0.50
 
 [models]
 # Model for chat responses
-chat = "claude-sonnet-4-20250514"
+chat = "claude-opus-4-5-20251101"
 
 # Model for topic detection (should be fast/cheap)
-detection = "claude-3-5-haiku-latest"
+detection = "claude-haiku-4-5-20251001"
 
 [database]
 # Path to SQLite database
-# Can also be set via RLM_DB_PATH environment variable
-path = "~/.local/share/rlm/rlm.db"
+# Can also be set via NOSTOP_DB_PATH environment variable
+path = "~/.local/share/nostop/nostop.db"
 
 [ui]
 # UI theme: "dark" or "light"
@@ -261,6 +280,19 @@ theme = "dark"
 
 # Enable auto-refresh in debug view
 auto_refresh = true
+
+[tools]
+# Enable agentic tool use (Claude can call CLI tools during conversations)
+enabled = false
+
+# Per-tool execution timeout in seconds
+timeout = 30
+
+# Tools to disable (by name)
+# disabled_tools = ["delete", "repfor"]
+
+# Working directory for tool execution (defaults to current directory)
+# work_dir = "/path/to/project"
 `
 }
 
@@ -271,11 +303,11 @@ func GetConfigPath() string {
 	if configHome == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
-			return "rlm.toml"
+			return "nostop.toml"
 		}
 		configHome = filepath.Join(home, ".config")
 	}
-	return filepath.Join(configHome, "rlm", "config.toml")
+	return filepath.Join(configHome, "nostop", "config.toml")
 }
 
 // ValidateConfig validates a FileConfig and returns any errors.

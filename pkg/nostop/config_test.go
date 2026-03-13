@@ -1,4 +1,4 @@
-package rlm
+package nostop
 
 import (
 	"os"
@@ -104,7 +104,7 @@ auto_refresh = false
 	}
 }
 
-func TestToRLMConfig(t *testing.T) {
+func TestToNostopConfig(t *testing.T) {
 	// Clear env so it doesn't override the config file value
 	t.Setenv("ANTHROPIC_API_KEY", "")
 
@@ -127,7 +127,7 @@ func TestToRLMConfig(t *testing.T) {
 		},
 	}
 
-	cfg := fileCfg.ToRLMConfig()
+	cfg := fileCfg.ToNostopConfig()
 
 	if cfg.APIKey != "test-key" {
 		t.Errorf("expected APIKey=test-key, got %s", cfg.APIKey)
@@ -146,7 +146,7 @@ func TestToRLMConfig(t *testing.T) {
 	}
 }
 
-func TestToRLMConfigEnvOverride(t *testing.T) {
+func TestToNostopConfigEnvOverride(t *testing.T) {
 	// Set environment variable
 	origKey := os.Getenv("ANTHROPIC_API_KEY")
 	os.Setenv("ANTHROPIC_API_KEY", "env-override-key")
@@ -164,7 +164,7 @@ func TestToRLMConfigEnvOverride(t *testing.T) {
 		},
 	}
 
-	cfg := fileCfg.ToRLMConfig()
+	cfg := fileCfg.ToNostopConfig()
 
 	// Environment variable should override config file value
 	if cfg.APIKey != "env-override-key" {

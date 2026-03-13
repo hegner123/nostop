@@ -1,10 +1,10 @@
-package rlm
+package nostop
 
 import (
 	"testing"
 	"time"
 
-	"github.com/user/rlm/internal/api"
+	"github.com/hegner123/nostop/internal/api"
 )
 
 func TestDefaultCacheStrategy(t *testing.T) {

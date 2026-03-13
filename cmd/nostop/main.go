@@ -3,12 +3,13 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/user/rlm/internal/tui"
-	"github.com/user/rlm/pkg/rlm"
+	"github.com/hegner123/nostop/internal/tui"
+	"github.com/hegner123/nostop/pkg/nostop"
 )
 
 const (
@@ -16,7 +17,7 @@ const (
 	envAPIKey = "ANTHROPIC_API_KEY"
 
 	// defaultDBName is the default database filename.
-	defaultDBName = "rlm.db"
+	defaultDBName = "nostop.db"
 )
 
 // Build info - set via ldflags
@@ -27,12 +28,12 @@ var (
 )
 
 var (
-	configPath  = flag.String("config", "", "Path to config file (default: searches ./rlm.toml, ~/.config/rlm/config.toml, ~/.rlm.toml)")
-	writeConfig = flag.Bool("write-config", false, "Write default config to ~/.config/rlm/config.toml and exit")
+	configPath  = flag.String("config", "", "Path to config file (default: searches ./nostop.toml, ~/.config/nostop/config.toml, ~/.nostop.toml)")
+	writeConfig = flag.Bool("write-config", false, "Write default config to ~/.config/nostop/config.toml and exit")
 	showConfig  = flag.Bool("show-config", false, "Show loaded configuration and exit")
 	verbose     = flag.Bool("verbose", false, "Enable verbose output")
 	version     = flag.Bool("version", false, "Show version and exit")
-	debug       = flag.Bool("debug", false, "Enable debug logging to ~/.local/share/rlm/debug.log")
+	debug       = flag.Bool("debug", false, "Enable debug logging to ~/.local/share/nostop/debug.log")
 	debugPath   = flag.String("debug-log", "", "Custom path for debug log file")
 )
 
@@ -52,12 +53,12 @@ func run() error {
 			return fmt.Errorf("failed to initialize debug logger: %w", err)
 		}
 		defer tui.CloseLogger()
-		tui.Log("RLM starting - version=%s commit=%s", buildVersion, buildCommit)
+		tui.Log("Nostop starting - version=%s commit=%s", buildVersion, buildCommit)
 	}
 
 	// Handle version flag
 	if *version {
-		fmt.Printf("rlm %s\n", buildVersion)
+		fmt.Printf("nostop %s\n", buildVersion)
 		fmt.Printf("  commit: %s\n", buildCommit)
 		fmt.Printf("  built:  %s\n", buildTime)
 		return nil
@@ -69,21 +70,35 @@ func run() error {
 	}
 
 	// Load configuration from file
-	fileCfg, configFile, err := rlm.LoadConfigWithPath(*configPath)
+	fileCfg, configFile, err := nostop.LoadConfigWithPath(*configPath)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
+	// First-run setup: if no config file was found and the user didn't
+	// specify one explicitly, run the interactive setup wizard.
+	if configFile == "" && *configPath == "" {
+		setupPath, setupErr := firstRunSetup()
+		if setupErr != nil {
+			return fmt.Errorf("setup failed: %w", setupErr)
+		}
+		// Reload from the newly written config
+		fileCfg, configFile, err = nostop.LoadConfigWithPath(setupPath)
+		if err != nil {
+			return fmt.Errorf("failed to load generated config: %w", err)
+		}
+	}
+
 	// Validate configuration
-	if errs := rlm.ValidateConfig(fileCfg); len(errs) > 0 {
+	if errs := nostop.ValidateConfig(fileCfg); len(errs) > 0 {
 		for _, e := range errs {
 			fmt.Fprintf(os.Stderr, "Config error: %v\n", e)
 		}
 		return fmt.Errorf("invalid configuration")
 	}
 
-	// Convert to RLM config (applies env overrides)
-	cfg := fileCfg.ToRLMConfig()
+	// Convert to Nostop config (applies env overrides)
+	cfg := fileCfg.ToNostopConfig()
 
 	// Ensure database directory exists
 	if err := ensureDBDir(cfg.DBPath); err != nil {
@@ -112,15 +127,26 @@ func run() error {
 		return fmt.Errorf("API key is required. Set %s environment variable or add 'key' to [api] section in config file", envAPIKey)
 	}
 
-	// Initialize RLM engine
-	engine, err := rlm.New(cfg)
+	// Initialize Nostop engine
+	engine, err := nostop.New(cfg)
 	if err != nil {
-		return fmt.Errorf("failed to initialize RLM engine: %w", err)
+		return fmt.Errorf("failed to initialize Nostop engine: %w", err)
 	}
 	defer engine.Close()
 
 	// Create and run the Bubbletea program
 	app := tui.NewApp(engine)
+
+	// Wire engine internals to the TUI so topics, context usage,
+	// and archiver state are visible in the Topics/Debug views.
+	app.SetTracker(engine.Tracker())
+	app.SetContextManager(engine.ContextMgr())
+	app.SetArchiver(engine.InternalArchiver())
+
+	// Redirect stdlib log to the debug log file (or discard) so that
+	// log.Printf calls from the engine don't corrupt Bubbletea's display.
+	log.SetOutput(tui.LogWriter())
+
 	p := tea.NewProgram(
 		app,
 		tea.WithAltScreen(),       // Use alternate screen buffer
@@ -137,12 +163,12 @@ func run() error {
 
 // handleWriteConfig writes the default configuration file.
 func handleWriteConfig() error {
-	path := rlm.GetConfigPath()
+	path := nostop.GetConfigPath()
 	if *configPath != "" {
 		path = *configPath
 	}
 
-	if err := rlm.WriteDefaultConfig(path); err != nil {
+	if err := nostop.WriteDefaultConfig(path); err != nil {
 		return fmt.Errorf("failed to write config: %w", err)
 	}
 
@@ -151,7 +177,7 @@ func handleWriteConfig() error {
 }
 
 // handleShowConfig displays the current configuration.
-func handleShowConfig(fileCfg *rlm.FileConfig, configFile string, cfg *rlm.Config) error {
+func handleShowConfig(fileCfg *nostop.FileConfig, configFile string, cfg *nostop.Config) error {
 	if configFile != "" {
 		fmt.Printf("Config file: %s\n", configFile)
 	} else {
@@ -187,6 +213,17 @@ func handleShowConfig(fileCfg *rlm.FileConfig, configFile string, cfg *rlm.Confi
 	fmt.Println("[ui]")
 	fmt.Printf("  theme = %q\n", fileCfg.UI.Theme)
 	fmt.Printf("  auto_refresh = %v\n", fileCfg.UI.AutoRefresh)
+	fmt.Println()
+
+	fmt.Println("[tools]")
+	fmt.Printf("  enabled = %v\n", fileCfg.Tools.Enabled)
+	fmt.Printf("  timeout = %ds\n", int(cfg.ToolTimeout.Seconds()))
+	if len(fileCfg.Tools.DisabledTools) > 0 {
+		fmt.Printf("  disabled_tools = %v\n", fileCfg.Tools.DisabledTools)
+	}
+	if fileCfg.Tools.WorkDir != "" {
+		fmt.Printf("  work_dir = %q\n", fileCfg.Tools.WorkDir)
+	}
 
 	return nil
 }
