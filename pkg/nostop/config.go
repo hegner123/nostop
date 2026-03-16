@@ -2,68 +2,68 @@
 package nostop
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/BurntSushi/toml"
 	"github.com/hegner123/nostop/internal/api"
 )
 
 // Config file locations (in order of precedence):
-// 1. ./nostop.toml (current directory)
-// 2. ~/.config/nostop/config.toml (XDG)
-// 3. ~/.nostop.toml (home directory)
+// 1. ./nostop.json (current directory)
+// 2. ~/.config/nostop/config.json (XDG)
+// 3. ~/.nostop.json (home directory)
 
-// FileConfig represents the structure of the TOML configuration file.
+// FileConfig represents the structure of the JSON configuration file.
 type FileConfig struct {
-	API      APIConfig      `toml:"api"`
-	Context  ContextConfig  `toml:"context"`
-	Models   ModelsConfig   `toml:"models"`
-	Database DatabaseConfig `toml:"database"`
-	UI       UIConfig       `toml:"ui"`
-	Tools    ToolsConfig    `toml:"tools"`
+	API      APIConfig      `json:"api"`
+	Context  ContextConfig  `json:"context"`
+	Models   ModelsConfig   `json:"models"`
+	Database DatabaseConfig `json:"database"`
+	UI       UIConfig       `json:"ui"`
+	Tools    ToolsConfig    `json:"tools"`
 }
 
 // ToolsConfig contains configuration for agentic tool use.
 type ToolsConfig struct {
-	Enabled       bool     `toml:"enabled"`
-	Timeout       int      `toml:"timeout"` // seconds per tool execution
-	DisabledTools []string `toml:"disabled_tools"`
-	WorkDir       string   `toml:"work_dir"`
+	Enabled       bool     `json:"enabled"`
+	Timeout       int      `json:"timeout"` // seconds per tool execution
+	DisabledTools []string `json:"disabled_tools,omitempty"`
+	WorkDir       string   `json:"work_dir,omitempty"`
 }
 
 // APIConfig contains API-related configuration.
 type APIConfig struct {
-	Key     string `toml:"key"`      // Can also use ANTHROPIC_API_KEY env
-	BaseURL string `toml:"base_url"` // Optional override
-	Timeout int    `toml:"timeout"`  // Seconds (default: 120)
+	Key     string `json:"key,omitempty"`  // Can also use ANTHROPIC_API_KEY env
+	BaseURL string `json:"base_url,omitempty"` // Optional override
+	Timeout int    `json:"timeout"`  // Seconds (default: 120)
 }
 
 // ContextConfig contains context management configuration.
 type ContextConfig struct {
-	MaxTokens        int     `toml:"max_tokens"`        // Default: 200000
-	ArchiveThreshold float64 `toml:"archive_threshold"` // Default: 0.95
-	ArchiveTarget    float64 `toml:"archive_target"`    // Default: 0.50
+	MaxTokens        int     `json:"max_tokens"`        // Default: 200000
+	ArchiveThreshold float64 `json:"archive_threshold"` // Default: 0.95
+	ArchiveTarget    float64 `json:"archive_target"`    // Default: 0.50
 }
 
 // ModelsConfig contains model selection configuration.
 type ModelsConfig struct {
-	Chat      string `toml:"chat"`      // Default: claude-opus-4-5-20251101
-	Detection string `toml:"detection"` // Default: claude-haiku-4-5-20251001
+	Chat      string `json:"chat"`      // Default: claude-opus-4-5-20251101
+	Detection string `json:"detection"` // Default: claude-haiku-4-5-20251001
 }
 
 // DatabaseConfig contains database configuration.
 type DatabaseConfig struct {
-	Path string `toml:"path"` // Default: ~/.local/share/nostop/nostop.db
+	Path string `json:"path"` // Default: ~/.local/share/nostop/nostop.db
 }
 
 // UIConfig contains UI-related configuration.
 type UIConfig struct {
-	Theme       string `toml:"theme"`        // "dark" or "light"
-	AutoRefresh bool   `toml:"auto_refresh"` // Debug view auto-refresh
+	Theme       string `json:"theme"`        // "dark" or "light"
+	AutoRefresh bool   `json:"auto_refresh"` // Debug view auto-refresh
 }
 
 // DefaultFileConfig returns a FileConfig with sensible defaults.
@@ -92,7 +92,7 @@ func DefaultFileConfig() FileConfig {
 }
 
 // LoadConfig loads configuration from the first found config file.
-// It searches in order: ./nostop.toml, ~/.config/nostop/config.toml, ~/.nostop.toml
+// It searches in order: ./nostop.json, ~/.config/nostop/config.json, ~/.nostop.json
 // Returns the loaded config and the path it was loaded from (empty if no file found).
 func LoadConfig() (*FileConfig, string, error) {
 	return LoadConfigWithPath("")
@@ -106,10 +106,11 @@ func LoadConfigWithPath(configPath string) (*FileConfig, string, error) {
 	if configPath != "" {
 		// Use specified path
 		expanded := expandPath(configPath)
-		if _, err := os.Stat(expanded); err != nil {
+		data, err := os.ReadFile(expanded)
+		if err != nil {
 			return nil, "", fmt.Errorf("config file not found: %s", configPath)
 		}
-		if _, err := toml.DecodeFile(expanded, &cfg); err != nil {
+		if err := json.Unmarshal(data, &cfg); err != nil {
 			return nil, "", fmt.Errorf("failed to parse config file %s: %w", configPath, err)
 		}
 		return &cfg, expanded, nil
@@ -118,12 +119,14 @@ func LoadConfigWithPath(configPath string) (*FileConfig, string, error) {
 	// Search default locations
 	paths := getConfigPaths()
 	for _, path := range paths {
-		if _, err := os.Stat(path); err == nil {
-			if _, err := toml.DecodeFile(path, &cfg); err != nil {
-				return nil, "", fmt.Errorf("failed to parse config file %s: %w", path, err)
-			}
-			return &cfg, path, nil
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
 		}
+		if err := json.Unmarshal(data, &cfg); err != nil {
+			return nil, "", fmt.Errorf("failed to parse config file %s: %w", path, err)
+		}
+		return &cfg, path, nil
 	}
 
 	// No config file found, return defaults
@@ -135,7 +138,7 @@ func getConfigPaths() []string {
 	var paths []string
 
 	// 1. Current directory
-	paths = append(paths, "nostop.toml")
+	paths = append(paths, "nostop.json")
 
 	// 2. XDG config directory
 	configHome := os.Getenv("XDG_CONFIG_HOME")
@@ -146,13 +149,13 @@ func getConfigPaths() []string {
 		}
 	}
 	if configHome != "" {
-		paths = append(paths, filepath.Join(configHome, "nostop", "config.toml"))
+		paths = append(paths, filepath.Join(configHome, "nostop", "config.json"))
 	}
 
 	// 3. Home directory
 	home, err := os.UserHomeDir()
 	if err == nil {
-		paths = append(paths, filepath.Join(home, ".nostop.toml"))
+		paths = append(paths, filepath.Join(home, ".nostop.json"))
 	}
 
 	return paths
@@ -200,6 +203,9 @@ func (fc *FileConfig) ToNostopConfig() Config {
 		cfg.ToolTimeout = 30 * time.Second
 	}
 	cfg.ToolWorkDir = fc.Tools.WorkDir
+	if cfg.ToolWorkDir == "" {
+		cfg.ToolWorkDir, _ = os.Getwd()
+	}
 
 	return cfg
 }
@@ -227,7 +233,7 @@ func WriteDefaultConfig(path string) error {
 	}
 	defer f.Close()
 
-	// Write default config with comments
+	// Write default config
 	content := defaultConfigTemplate()
 	if _, err := f.WriteString(content); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
@@ -236,64 +242,11 @@ func WriteDefaultConfig(path string) error {
 	return nil
 }
 
-// defaultConfigTemplate returns the default config file content with comments.
+// defaultConfigTemplate returns the default config file content.
 func defaultConfigTemplate() string {
-	return `# Nostop Configuration File
-# https://github.com/hegner123/nostop
-
-[api]
-# API key for Anthropic Claude API
-# Can also be set via ANTHROPIC_API_KEY environment variable
-# key = "sk-ant-..."
-
-# Optional API base URL override (for proxies or custom endpoints)
-# base_url = "https://api.anthropic.com"
-
-# Request timeout in seconds
-timeout = 120
-
-[context]
-# Maximum context tokens (model limit)
-max_tokens = 200000
-
-# Archive threshold - triggers archival when context usage exceeds this percentage
-archive_threshold = 0.95
-
-# Archive target - archive until context usage drops to this percentage
-archive_target = 0.50
-
-[models]
-# Model for chat responses
-chat = "claude-opus-4-5-20251101"
-
-# Model for topic detection (should be fast/cheap)
-detection = "claude-haiku-4-5-20251001"
-
-[database]
-# Path to SQLite database
-# Can also be set via NOSTOP_DB_PATH environment variable
-path = "~/.local/share/nostop/nostop.db"
-
-[ui]
-# UI theme: "dark" or "light"
-theme = "dark"
-
-# Enable auto-refresh in debug view
-auto_refresh = true
-
-[tools]
-# Enable agentic tool use (Claude can call CLI tools during conversations)
-enabled = false
-
-# Per-tool execution timeout in seconds
-timeout = 30
-
-# Tools to disable (by name)
-# disabled_tools = ["delete", "repfor"]
-
-# Working directory for tool execution (defaults to current directory)
-# work_dir = "/path/to/project"
-`
+	cfg := DefaultFileConfig()
+	data, _ := json.MarshalIndent(cfg, "", "  ")
+	return string(data) + "\n"
 }
 
 // GetConfigPath returns the path where a new config would be written.
@@ -303,11 +256,11 @@ func GetConfigPath() string {
 	if configHome == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
-			return "nostop.toml"
+			return "nostop.json"
 		}
 		configHome = filepath.Join(home, ".config")
 	}
-	return filepath.Join(configHome, "nostop", "config.toml")
+	return filepath.Join(configHome, "nostop", "config.json")
 }
 
 // ValidateConfig validates a FileConfig and returns any errors.

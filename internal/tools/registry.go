@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os/exec"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/hegner123/nostop/internal/api"
@@ -51,13 +52,21 @@ type ToolDef struct {
 	// Timeout is the per-invocation timeout. Zero uses the executor's default.
 	Timeout time.Duration
 
-	// IsBuiltin returns true if this tool runs in-process.
-	// Convenience method — equivalent to checking Builtin != nil.
+	// MCPServer is the MCP server name that handles this tool.
+	// When set, the tool is dispatched via the ServerManager instead of
+	// subprocess or builtin. The registry key uses the three-segment format
+	// mcp__<servername>__<toolname> but MCPServer stores only the server name.
+	MCPServer string
 }
 
 // IsBuiltinTool returns true if this tool executes in-process.
 func (d ToolDef) IsBuiltinTool() bool {
 	return d.Builtin != nil
+}
+
+// IsMCPTool returns true if this tool is dispatched via an MCP server.
+func (d ToolDef) IsMCPTool() bool {
+	return d.MCPServer != ""
 }
 
 // FlagSpec describes how a single input parameter maps to a CLI flag.
@@ -73,7 +82,9 @@ type FlagSpec struct {
 }
 
 // Registry holds tool definitions and converts them to API-ready format.
+// All methods are safe for concurrent use via sync.RWMutex.
 type Registry struct {
+	mu    sync.RWMutex
 	tools map[string]ToolDef
 	order []string // insertion order for stable iteration
 }
@@ -88,6 +99,9 @@ func NewRegistry() *Registry {
 // Register adds a tool definition to the registry.
 // If a tool with the same name exists, it is replaced.
 func (r *Registry) Register(def ToolDef) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	if _, exists := r.tools[def.Name]; !exists {
 		r.order = append(r.order, def.Name)
 	}
@@ -96,12 +110,18 @@ func (r *Registry) Register(def ToolDef) {
 
 // Get returns a tool definition by name.
 func (r *Registry) Get(name string) (ToolDef, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
 	def, ok := r.tools[name]
 	return def, ok
 }
 
 // Remove removes a tool from the registry.
 func (r *Registry) Remove(name string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	if _, exists := r.tools[name]; !exists {
 		return
 	}
@@ -117,6 +137,9 @@ func (r *Registry) Remove(name string) {
 
 // Names returns all registered tool names in sorted order.
 func (r *Registry) Names() []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
 	names := make([]string, 0, len(r.tools))
 	for name := range r.tools {
 		names = append(names, name)
@@ -128,6 +151,9 @@ func (r *Registry) Names() []string {
 // APITools converts all registered tool definitions to api.Tool slices
 // suitable for inclusion in API requests.
 func (r *Registry) APITools() []api.Tool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
 	apiTools := make([]api.Tool, 0, len(r.tools))
 	for _, name := range r.order {
 		def := r.tools[name]
@@ -142,15 +168,25 @@ func (r *Registry) APITools() []api.Tool {
 
 // Len returns the number of registered tools.
 func (r *Registry) Len() int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
 	return len(r.tools)
 }
 
 // CheckBinaries verifies that each registered subprocess tool's binary is on PATH.
-// Builtin tools are skipped. Returns a map of tool name to error for any missing binaries.
+// Builtin and MCP tools are skipped. Returns a map of tool name to error for any
+// missing binaries.
 func (r *Registry) CheckBinaries() map[string]error {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
 	missing := make(map[string]error)
 	for name, def := range r.tools {
 		if def.IsBuiltinTool() {
+			continue
+		}
+		if def.IsMCPTool() {
 			continue
 		}
 		if _, err := exec.LookPath(def.Binary); err != nil {

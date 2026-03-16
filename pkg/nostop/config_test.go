@@ -32,7 +32,7 @@ func TestDefaultFileConfig(t *testing.T) {
 
 func TestLoadConfigNoFile(t *testing.T) {
 	// When no config file exists, should return defaults
-	cfg, path, err := LoadConfigWithPath("/nonexistent/path.toml")
+	cfg, path, err := LoadConfigWithPath("/nonexistent/path.json")
 	if err == nil {
 		t.Error("expected error for nonexistent file")
 	}
@@ -47,25 +47,26 @@ func TestLoadConfigNoFile(t *testing.T) {
 func TestLoadConfigFromFile(t *testing.T) {
 	// Create a temp config file
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "test.toml")
+	configPath := filepath.Join(tmpDir, "test.json")
 
-	content := `
-[api]
-timeout = 60
-
-[context]
-max_tokens = 100000
-archive_threshold = 0.90
-archive_target = 0.40
-
-[models]
-chat = "claude-test-model"
-detection = "claude-test-haiku"
-
-[ui]
-theme = "light"
-auto_refresh = false
-`
+	content := `{
+  "api": {
+    "timeout": 60
+  },
+  "context": {
+    "max_tokens": 100000,
+    "archive_threshold": 0.90,
+    "archive_target": 0.40
+  },
+  "models": {
+    "chat": "claude-test-model",
+    "detection": "claude-test-haiku"
+  },
+  "ui": {
+    "theme": "light",
+    "auto_refresh": false
+  }
+}`
 	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
 		t.Fatalf("failed to write test config: %v", err)
 	}
@@ -273,7 +274,7 @@ func TestValidateConfig(t *testing.T) {
 
 func TestWriteDefaultConfig(t *testing.T) {
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "subdir", "config.toml")
+	configPath := filepath.Join(tmpDir, "subdir", "config.json")
 
 	err := WriteDefaultConfig(configPath)
 	if err != nil {

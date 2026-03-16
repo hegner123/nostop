@@ -1,0 +1,10 @@
+{
+  "$schema": "nostop/plan/v1",
+  "file": "NOSTOP_PLAN.md",
+  "levels": [
+    {"name": "phase", "marker": "heading", "depth": 2, "prefix": ""},
+    {"name": "task", "marker": "heading", "depth": 3, "prefix": ""},
+    {"name": "subtask", "marker": "heading", "depth": 4, "prefix": ""},
+    {"name": "item", "marker": "numbered", "depth": 0, "prefix": ""}
+  ]
+}

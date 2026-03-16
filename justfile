@@ -41,9 +41,10 @@ build-windows:
     GOOS=windows GOARCH=amd64 go build -ldflags "{{ldflags}}" -o {{build_dir}}/{{binary_name}}-windows-amd64.exe {{cmd_dir}}
 
 # Install to /usr/local/bin
-install: build
+install:
+    go build -ldflags "{{ldflags}}" -o {{binary_name}} {{cmd_dir}}
     cp {{binary_name}} /usr/local/bin/{{binary_name}}
-    codesign -f -s - /usr/local/bin/{{binary_name}}
+    codesign -s - /usr/local/bin/{{binary_name}}
 
 # Run tests
 test:

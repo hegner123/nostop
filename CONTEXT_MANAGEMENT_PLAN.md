@@ -5,7 +5,7 @@
 > multi-step tasks. Both modes archive detail to SQLite and retain compact
 > summaries in active context.
 
-## Status: Draft v1 (2026-03-13)
+## Status: Phase D Complete (2025-01-XX)
 
 ---
 
@@ -17,8 +17,8 @@ User explores a codebase, troubleshoots bugs, cleans up code across
 multiple areas. Topics are detected automatically. When the user moves on,
 old topics are archived with a summary that stays in active context.
 
-**Current state:** Topics detect drift. Archiving removes messages.
-**Gap:** No summary survives — archived context is fully lost until restore.
+**Current state:** Topics detect drift. Archiving creates summary messages.
+**Gap:** None — Phase A complete.
 
 ### Use Case 2: Plan-Driven Execution
 
@@ -74,17 +74,17 @@ isn't rich enough, a future version can use Claude to generate it.
 
 ---
 
-## Phase A: Summary-on-Archive (enhances Use Case 1)
+## Phase A: Summary-on-Archive (enhances Use Case 1) ✅ COMPLETE
 
 **Goal:** When a topic is archived (manually or automatically), generate a
 summary and keep it in active context.
 
-### A.1 — Schema migration
+### A.1 — Schema migration ✅
 
 Add `is_summary`, `summary_source`, `summary_source_id` columns to
 messages table. Migration must be idempotent (check before ALTER).
 
-### A.2 — Summary builder
+### A.2 — Summary builder ✅
 
 New function in `pkg/nostop/`:
 
@@ -95,7 +95,7 @@ func BuildArchiveSummary(messages []storage.Message, topicName string) string
 Takes the messages about to be archived, extracts structured info (tool
 calls, file paths, assistant text), formats a compact summary string.
 
-### A.3 — Integrate into archive flow
+### A.3 — Integrate into archive flow ✅
 
 In `Archiver.ArchiveTopic()`:
 1. Before marking messages as archived, call `BuildArchiveSummary()`
@@ -105,7 +105,7 @@ In `Archiver.ArchiveTopic()`:
 The summary message has the same `conversation_id` and `topic_id` as the
 archived messages, but `is_archived = FALSE` so it stays in context.
 
-### A.4 — TUI display
+### A.4 — TUI display ✅
 
 Show summary messages with a distinct style (collapsed/dimmed). The user
 sees "[Archived: topic name — summary]" in the chat instead of nothing.
@@ -122,12 +122,14 @@ sees "[Archived: topic name — summary]" in the chat instead of nothing.
 
 ---
 
-## Phase B: Plan Schema and Parser (enables Use Case 2)
+## Phase B: Plan Schema and Parser (enables Use Case 2) ✅ COMPLETE
 
 **Goal:** Define a JSON schema for plan structure, parse plan documents
 into a work unit tree.
 
-### B.1 — JSON schema definition
+**Completed:** 2025-01-13. All items verified.
+
+### B.1 — JSON schema definition ✅
 
 File: `nostop-plan.json` in project root (or `.nostop/plan.json`).
 
@@ -169,7 +171,7 @@ File: `nostop-plan.json` in project root (or `.nostop/plan.json`).
 | `levels[].depth` | int | For headings: `##` = 2, `###` = 3. For lists: nesting depth |
 | `levels[].prefix` | string | Optional prefix filter (e.g. "Phase" skips non-phase H2s) |
 
-### B.2 — Work unit types
+### B.2 — Work unit types ✅
 
 New package: `internal/plan/`
 
@@ -200,7 +202,7 @@ type Plan struct {
 }
 ```
 
-### B.3 — Plan parser
+### B.3 — Plan parser ✅
 
 Reads the plan markdown file + schema config, produces a `Plan`:
 
@@ -215,7 +217,7 @@ Reads the plan markdown file + schema config, produces a `Plan`:
 5. Derive IDs from hierarchy: `phase-1`, `phase-1/step-1.1`, etc.
 6. Extract status from markers: `[x]` = Complete, `COMPLETE` in heading = Complete
 
-### B.4 — Plan persistence in SQLite
+### B.4 — Plan persistence in SQLite ✅
 
 ```sql
 CREATE TABLE IF NOT EXISTS work_units (
@@ -248,25 +250,26 @@ ALTER TABLE messages ADD COLUMN work_unit_id TEXT;
 
 ---
 
-## Phase C: Work Unit Message Tracking
+## Phase C: Work Unit Message Tracking ✅ COMPLETE
 
 **Goal:** Tag messages with their work unit ID as work progresses through
 a plan.
 
-### C.1 — Active work unit tracking
+### C.1 — Active work unit tracking ✅
 
 The engine tracks which work unit is currently active. When the user
 starts working on a step (or the system detects it from message content),
 new messages get tagged with that `work_unit_id`.
 
-### C.2 — Manual work unit selection
+### C.2 — Manual work unit selection ✅
 
 TUI command or key binding to set the active work unit:
-- Show the plan tree in an overlay
+- Show the plan tree in an overlay (`ctrl+p`)
 - User selects a step → it becomes active
 - All subsequent messages get that `work_unit_id`
+- Slash commands: `/plan <schema>` to load, `/plan refresh`, `/plan` for status
 
-### C.3 — Automatic step advancement
+### C.3 — Automatic step advancement ✅
 
 When a checklist item is marked `[x]` in the plan file (detected on next
 parse), the corresponding work unit status updates to Complete.
@@ -277,39 +280,58 @@ parse), the corresponding work unit status updates to Complete.
 - Complete a step → status updates in SQLite
 - Messages queryable by work unit: `WHERE work_unit_id = ?`
 
-**Files:** `pkg/nostop/nostop.go`, `internal/tui/app.go`,
+**Files:** `pkg/nostop/nostop.go`, `pkg/nostop/plantracker.go` (new),
+`internal/tui/app.go`, `internal/tui/chat.go`,
 `internal/tui/plan_overlay.go` (new)
 
 ---
 
-## Phase D: Plan-Driven Archiving
+## Phase D: Plan-Driven Archiving ✅ COMPLETE
 
 **Goal:** When a work unit completes, archive its detail and retain a
 summary.
 
-### D.1 — Work unit archive flow
+**Completed:** 2025-01-XX. All items verified.
+
+### D.1 — Work unit archive flow ✅
 
 Reuses Phase A's summary-on-archive, but scoped to work unit:
 
 1. Work unit marked complete
 2. Query messages: `WHERE work_unit_id = ? AND is_archived = FALSE`
-3. Call `BuildArchiveSummary()` with those messages
+3. Call `BuildWorkUnitSummary()` with those messages
 4. Insert summary message with `summary_source = 'work_unit'`
 5. Mark detail messages `is_archived = TRUE`
 6. Update work unit status to `Archived`
 
-### D.2 — Plan progress view
+**Implementation:**
+- `Archiver.ArchiveWorkUnit()` in `pkg/nostop/archiver.go`
+- `SQLite.ArchiveWorkUnitWithSummary()` in `internal/storage/sqlite_workunit.go`
+- `BuildWorkUnitSummary()` and `FormatWorkUnitSummary()` in `pkg/nostop/archiver.go`
+
+### D.2 — Plan progress view ✅
 
 TUI overlay showing the plan tree with:
-- Status indicators (pending/active/complete/archived)
-- Token counts per work unit
-- Summary preview for archived units
-- Keys: `enter` to set active, `x` to archive completed step
+- Status indicators (pending/active/complete/archived) ✅
+- Token counts per work unit (cached, displayed for selected/archived) ✅
+- Summary preview for archived units (`s` key) ✅
+- Keys: `enter` to set active, `x` to complete, `a` to archive, `u` to restore ✅
 
-### D.3 — Work unit restore
+**Implementation:**
+- `PlanOverlay` in `internal/tui/plan_overlay.go` with new methods:
+  - `archiveWorkUnit()`, `restoreWorkUnit()`, `loadSummaryPreview()`
+  - `getWorkUnitStats()` with caching via `statsCache`
+  - New messages: `WorkUnitArchivedMsg`, `WorkUnitRestoredMsg`
+
+### D.3 — Work unit restore ✅
 
 Like topic restore — re-expand a work unit's archived messages back into
 active context. The summary message can optionally be kept or removed.
+
+**Implementation:**
+- `Archiver.RestoreWorkUnit()` in `pkg/nostop/archiver.go`
+- `SQLite.RestoreWorkUnit()` in `internal/storage/sqlite_workunit.go`
+- `keepSummary` parameter controls whether summary is preserved
 
 ### Testing
 
@@ -321,7 +343,7 @@ active context. The summary message can optionally be kept or removed.
   stays bounded → plan completes
 
 **Files:** `pkg/nostop/archiver.go`, `internal/tui/plan_overlay.go`,
-`internal/storage/sqlite.go`
+`internal/storage/sqlite.go`, `internal/storage/sqlite_workunit.go` (new)
 
 ---
 

@@ -697,7 +697,7 @@ type ModelInfo struct {
 // ModelsListResponse is the response from GET /v1/models.
 type ModelsListResponse struct {
 	Data    []ModelInfo `json:"data"`
-	HasMore bool       `json:"has_more"`
-	FirstID string     `json:"first_id"`
-	LastID  string     `json:"last_id"`
+	HasMore bool        `json:"has_more"`
+	FirstID string      `json:"first_id"`
+	LastID  string      `json:"last_id"`
 }

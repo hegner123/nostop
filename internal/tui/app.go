@@ -2,10 +2,13 @@ package tui
 
 import (
 	"context"
+	"fmt"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/hegner123/nostop/internal/mcp"
 	"github.com/hegner123/nostop/internal/topic"
 	"github.com/hegner123/nostop/pkg/nostop"
 )
@@ -47,6 +50,8 @@ type App struct {
 
 	topicsModel *TopicsModel
 	history     *HistoryModel
+	mcpManager  *mcp.ServerManager
+	planOverlay *PlanOverlay
 
 	// activeOverlay captures all key input and renders on top of the chat.
 	activeOverlay ModalOverlay
@@ -101,6 +106,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		if a.debugModel == nil {
 			a.debugModel = NewDebugModel(a.contextMgr, a.tracker, a.convID, a.ctx, msg.Width-4, contentHeight)
+			if a.mcpManager != nil {
+				a.debugModel.SetMCPManager(a.mcpManager)
+			}
 			cmds = append(cmds, a.debugModel.Init())
 		}
 
@@ -147,6 +155,8 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return nil
 			})
+		case "ctrl+p":
+			return a.togglePlanOverlay()
 		}
 
 		// If overlay is active, route all other keys to it
@@ -235,17 +245,23 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return a, a.loadChatMessages()
 
-	// History messages
-	case ConversationSelectedMsg:
+	// History messages (topic-based)
+	case TopicSelectedMsg:
 		a.activeOverlay = nil // Close history overlay
-		a.convID = msg.ConvID
+		a.convID = msg.ConversationID
+		// Set the selected topic as current
+		if a.tracker != nil {
+			ctx, cancel := context.WithTimeout(a.ctx, 5*time.Second)
+			defer cancel()
+			a.tracker.SetCurrentTopic(ctx, msg.TopicID)
+		}
 		if a.chatModel != nil {
-			a.chatModel.SetConversation(msg.ConvID)
+			a.chatModel.SetConversation(msg.ConversationID)
 			return a, tea.Batch(a.chatModel.Focus(), a.loadChatMessages())
 		}
 		return a, a.loadChatMessages()
 
-	case ConversationsLoadedMsg, ConversationsLoadErrorMsg, ConversationDeletedMsg, ConversationDeleteErrorMsg:
+	case TopicsHistoryLoadedMsg, TopicsHistoryLoadErrorMsg, TopicDeletedMsg, TopicDeleteErrorMsg:
 		if a.history != nil {
 			a.history, _ = a.history.Update(msg)
 		}
@@ -303,6 +319,43 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			var cmd tea.Cmd
 			*a.debugModel, cmd = a.debugModel.Update(msg)
 			return a, cmd
+		}
+		return a, nil
+
+	// Plan messages
+	case PlanLoadedMsg, PlanRefreshedMsg:
+		if a.planOverlay != nil {
+			var cmd tea.Cmd
+			*a.planOverlay, cmd = a.planOverlay.Update(msg)
+			return a, cmd
+		}
+		return a, nil
+
+	case WorkUnitSelectedMsg:
+		if a.planOverlay != nil {
+			a.planOverlay.Update(msg)
+		}
+		// Show notification
+		if a.chatModel != nil && a.chatModel.notifications != nil {
+			a.chatModel.notifications.AddTopicNotification("Work unit: "+msg.Name, false)
+			a.chatModel.updateViewport()
+		}
+		return a, nil
+
+	case WorkUnitCompletedMsg:
+		if a.planOverlay != nil {
+			a.planOverlay.Update(msg)
+			a.planOverlay.buildVisibleList()
+		}
+		return a, nil
+
+	case planLoadErrorMsg, planRefreshErrorMsg:
+		if a.planOverlay != nil {
+			a.planOverlay.Update(msg)
+		}
+		// Also forward to chatModel so error appears in chat
+		if a.chatModel != nil {
+			a.chatModel, _ = a.chatModel.Update(msg)
 		}
 		return a, nil
 
@@ -433,6 +486,31 @@ func (a App) toggleOverlay(target ModalOverlay, onOpen func() tea.Cmd) (tea.Mode
 	return a, nil
 }
 
+// togglePlanOverlay opens or closes the plan overlay.
+// Creates the plan overlay on first access if a plan tracker exists.
+func (a App) togglePlanOverlay() (tea.Model, tea.Cmd) {
+	// Create plan overlay if needed
+	if a.planOverlay == nil && a.engine != nil && a.convID != "" {
+		tracker := a.engine.GetOrCreatePlanTracker(a.convID)
+		a.planOverlay = NewPlanOverlay(tracker, a.engine, a.convID, a.ctx, a.width-4, a.height-4)
+	}
+
+	if a.planOverlay == nil {
+		return a, nil
+	}
+
+	if a.activeOverlay == a.planOverlay {
+		a.activeOverlay = nil
+		if a.chatModel != nil {
+			return a, a.chatModel.Focus()
+		}
+		return a, nil
+	}
+
+	a.activeOverlay = a.planOverlay
+	return a, a.planOverlay.Refresh()
+}
+
 // renderHeader renders the application header with optional topic name.
 func (a App) renderHeader() string {
 	title := a.styles.Title.Render("nostop")
@@ -446,6 +524,22 @@ func (a App) renderHeader() string {
 			status = "working"
 		}
 		title = title + a.styles.Info.Render(" · "+status)
+	}
+
+	// MCP server count when servers are configured
+	if a.mcpManager != nil {
+		names := a.mcpManager.ServerNames()
+		if len(names) > 0 {
+			ready := 0
+			for _, name := range names {
+				info, ok := a.mcpManager.ServerInfo(name)
+				if ok && info.Status == mcp.ServerReady {
+					ready++
+				}
+			}
+			mcpStr := fmt.Sprintf("mcp: %d/%d", ready, len(names))
+			title = title + a.styles.Help.Render(" · "+mcpStr)
+		}
 	}
 
 	if a.chatModel != nil && a.chatModel.GetTopic() != "" {
@@ -482,6 +576,7 @@ func (a App) renderHelp() string {
 		a.styles.RenderKeyBinding("ctrl+h", "history"),
 		a.styles.RenderKeyBinding("ctrl+t", "topics"),
 		a.styles.RenderKeyBinding("ctrl+d", "debug"),
+		a.styles.RenderKeyBinding("ctrl+p", "plan"),
 		a.styles.RenderKeyBinding("esc", "quit"),
 	}
 	return a.styles.Help.Render(strings.Join(bindings, "  "))
@@ -541,6 +636,16 @@ func (a *App) SetContextManager(mgr *nostop.ContextManager) {
 	a.contextMgr = mgr
 	if a.debugModel != nil {
 		a.debugModel = NewDebugModel(mgr, a.tracker, a.convID, a.ctx, a.width-4, a.height-6)
+		if a.mcpManager != nil {
+			a.debugModel.SetMCPManager(a.mcpManager)
+		}
+	}
+}
+
+func (a *App) SetMCPManager(mgr *mcp.ServerManager) {
+	a.mcpManager = mgr
+	if a.debugModel != nil {
+		a.debugModel.SetMCPManager(mgr)
 	}
 }
 

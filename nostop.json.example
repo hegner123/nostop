@@ -1,0 +1,35 @@
+{
+  "_comment": "nostop Configuration File - https://github.com/hegner123/nostop",
+  "_config_search_order": [
+    "./nostop.json (current directory)",
+    "~/.config/nostop/config.json (XDG)",
+    "~/.nostop.json (home directory)"
+  ],
+  "api": {
+    "key": "",
+    "base_url": "",
+    "timeout": 120
+  },
+  "context": {
+    "max_tokens": 200000,
+    "archive_threshold": 0.95,
+    "archive_target": 0.50
+  },
+  "models": {
+    "chat": "claude-sonnet-4-20250514",
+    "detection": "claude-3-5-haiku-latest"
+  },
+  "database": {
+    "path": "~/.local/share/nostop/nostop.db"
+  },
+  "ui": {
+    "theme": "dark",
+    "auto_refresh": true
+  },
+  "tools": {
+    "enabled": false,
+    "timeout": 30,
+    "disabled_tools": [],
+    "work_dir": ""
+  }
+}

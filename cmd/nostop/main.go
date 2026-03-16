@@ -11,6 +11,8 @@ import (
 	"syscall"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/hegner123/nostop/internal/mcp"
+	"github.com/hegner123/nostop/internal/tools"
 	"github.com/hegner123/nostop/internal/tui"
 	"github.com/hegner123/nostop/pkg/nostop"
 )
@@ -153,6 +155,9 @@ func run() error {
 		os.Exit(1)
 	}()
 
+	// Discover and start MCP servers
+	mcpManager := initMCPServers(ctx, engine)
+
 	// Create and run the Bubbletea program
 	app := tui.NewApp(engine, ctx)
 
@@ -161,6 +166,11 @@ func run() error {
 	app.SetTracker(engine.Tracker())
 	app.SetContextManager(engine.ContextMgr())
 	app.SetArchiver(engine.InternalArchiver())
+
+	// Wire MCP manager into the TUI for debug overlay status display.
+	if mcpManager != nil {
+		app.SetMCPManager(mcpManager)
+	}
 
 	// Redirect stdlib log to the debug log file (or discard) so that
 	// log.Printf calls from the engine don't corrupt Bubbletea's display.
@@ -258,4 +268,75 @@ func ensureDBDir(dbPath string) error {
 		return fmt.Errorf("failed to create database directory: %w", err)
 	}
 	return nil
+}
+
+// initMCPServers discovers MCP configs, starts servers, and registers their
+// tools into the engine's registry. Returns the ServerManager (may be nil
+// if no configs found).
+func initMCPServers(ctx context.Context, engine *nostop.Nostop) *mcp.ServerManager {
+	workDir, _ := os.Getwd()
+	cfg, err := mcp.DiscoverConfigs("", workDir)
+	if err != nil {
+		tui.Log("MCP config discovery error: %v", err)
+		return nil
+	}
+
+	if len(cfg.MCPServers) == 0 {
+		return nil
+	}
+
+	mgr := mcp.NewServerManager("nostop", buildVersion)
+	mgr.LoadConfig(cfg)
+
+	// Start all servers concurrently.
+	tui.Log("Starting %d MCP servers...", len(cfg.MCPServers))
+	mgr.StartAll(ctx)
+
+	// Log per-server connection results.
+	for _, name := range mgr.ServerNames() {
+		info, ok := mgr.ServerInfo(name)
+		if !ok {
+			continue
+		}
+		toolCount := len(info.Tools)
+		switch info.Status {
+		case mcp.ServerReady:
+			tui.Log("MCP server %s: ready (%d tools)", name, toolCount)
+		case mcp.ServerError:
+			errStr := "unknown error"
+			if info.Error != nil {
+				errStr = info.Error.Error()
+			}
+			tui.Log("MCP server %s: error (%s)", name, errStr)
+		default:
+			tui.Log("MCP server %s: %s", name, info.Status)
+		}
+	}
+
+	// Register MCP tools into the engine's tool registry.
+	registry := engine.ToolRegistry()
+	if registry != nil {
+		for _, name := range mgr.ServerNames() {
+			info, ok := mgr.ServerInfo(name)
+			if !ok || info.Status != mcp.ServerReady {
+				continue
+			}
+			for _, tool := range info.Tools {
+				registryName := "mcp__" + name + "__" + tool.Name
+				registry.Register(tools.ToolDef{
+					Name:        registryName,
+					Description: tool.Description,
+					InputSchema: tool.InputSchema,
+					MCPServer:   name,
+				})
+				tui.Log("Registered MCP tool %s from server %s", registryName, name)
+			}
+		}
+	}
+
+	// Wire into engine for dispatch and shutdown.
+	engine.SetMCPManager(mgr)
+
+	tui.Log("MCP init complete: %d servers configured", len(cfg.MCPServers))
+	return mgr
 }

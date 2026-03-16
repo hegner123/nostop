@@ -86,6 +86,10 @@ type Styles struct {
 	ToolOutput lipgloss.Style
 	ToolError  lipgloss.Style
 
+	// Summary message styles (archived topic summaries)
+	SummaryMessage lipgloss.Style
+	SummaryLabel   lipgloss.Style
+
 	// Debug view styles
 	DebugLabel lipgloss.Style
 	DebugValue lipgloss.Style
@@ -277,6 +281,16 @@ func DefaultStyles() Styles {
 		ToolError: lipgloss.NewStyle().
 			Foreground(colorError).
 			PaddingLeft(2),
+
+		// Summary message styles (dimmed, collapsed appearance)
+		SummaryMessage: lipgloss.NewStyle().
+			Foreground(colorMuted).
+			Italic(true).
+			PaddingLeft(2),
+
+		SummaryLabel: lipgloss.NewStyle().
+			Foreground(colorMuted).
+			Bold(true),
 
 		// Debug view styles
 		DebugLabel: lipgloss.NewStyle().

@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hegner123/nostop/internal/api"
+	"github.com/hegner123/nostop/internal/mcp"
 	"github.com/hegner123/nostop/internal/storage"
 	"github.com/hegner123/nostop/internal/tools"
 	"github.com/hegner123/nostop/internal/topic"
@@ -91,6 +92,12 @@ type Nostop struct {
 	toolExecutor *tools.Executor
 	toolsEnabled bool
 
+	// MCP server management (nil if no MCP servers configured)
+	mcpManager *mcp.ServerManager
+
+	// Plan-driven work unit tracking (nil until a plan is loaded)
+	planTracker *PlanTracker
+
 	mu sync.RWMutex
 	wg sync.WaitGroup // tracks background goroutines (e.g., relevance re-scoring)
 }
@@ -121,46 +128,66 @@ type ToolCallback func(event ToolEvent)
 // agenticSystemPrompt is prepended to the conversation's system prompt when
 // tools are enabled. It frames Claude as an agent that uses tools proactively
 // rather than describing what it would do.
-const agenticSystemPrompt = `You are an agentic coding assistant. You MUST use your tools to fulfill requests. Never describe what you would do — do it by calling tools.
+const agenticSystemPrompt = `You are an agentic coding assistant. You MUST use tools to fulfill requests — never describe what you would do. If the user asks you to do something and a tool exists for it, call the tool. Respond with text only when no tool is relevant (e.g., answering a conceptual question, explaining a tradeoff).
 
-IMPORTANT: You have tools available. Use them on every turn. If the user asks you to read a file, call the "read" tool. If they ask you to search, call "checkfor". If they ask you to run something, call "bash". Do not explain what you could do — just do it.
+## Environment
 
-Your tools:
-- read: Read file contents. Call this to see any file.
-- write: Create or modify files. You must read a file before writing to it.
-- bash: Execute shell commands (builds, tests, git, anything).
-- checkfor: Search for text in files across directories.
-- repfor: Search and replace text across files.
-- stump: Show directory tree structure.
-- sig: Extract function signatures and types from source files.
-- imports: Map dependencies and imports in a directory.
-- cleanDiff: Show git diff as structured JSON.
-- errs: Parse compiler/linter error output.
-- tabcount: Count tab indentation per line.
-- notab: Convert tabs to spaces or vice versa.
-- split: Split a file into parts at line numbers.
-- splice: Insert file contents into another file.
-- delete: Move files to Trash safely.
-- conflicts: Parse git merge conflict markers.
-- transform: Process JSON data through a pipeline.
-- utf8: Fix corrupted file encoding.
+You are operating inside nostop, a context-archival system. Your conversation history is actively managed:
+- Old topics are archived when context reaches 95% capacity, freeing space to 50%.
+- Archived topics may be restored if referenced, but the detail is temporarily unavailable.
+- Token efficiency directly extends conversation longevity. Prefer concise output. Show results, not process narration. Summarize large outputs instead of echoing them verbatim.
 
-Rules:
-- Always call a tool when you can. Text-only responses should be rare.
-- Read files before writing to them.
-- Use bash for builds, tests, and git commands.
-- When exploring code: stump for structure, sig for APIs, checkfor for searching.
-- Act incrementally: change, verify, continue.`
+Your working directory is injected after this prompt. All relative paths in tool calls resolve against it. Use relative paths when possible.
+
+## Tool Selection
+
+Your tools are described in the tool definitions. Here is when to prefer one over another:
+
+- Exploring unfamiliar code: stump (structure) → sig (API surface) → read (specific files)
+- Searching across files: checkfor (not bash + grep)
+- Renaming/replacing strings: checkfor (find all) → repfor (replace). Verify with checkfor after.
+- Understanding dependencies: imports (blast radius before refactoring)
+- After build/lint errors: pipe stderr through errs for structured output
+- File edits: read the file first, then write. Never write without reading.
+- Git operations: cleanDiff for viewing changes, bash for git commands
+- Whitespace issues: notab to normalize tabs/spaces, tabcount to inspect
+- File surgery: split to break apart, splice to insert content
+- Encoding problems: utf8 to fix corrupted files
+- Merge conflicts: conflicts for structured parsing, not manual reading
+- Data processing: transform for JSON pipelines
+
+Additional tools from external MCP servers may be available. Their names follow the pattern mcp__<server>__<tool>. Use them as you would any other tool.
+
+## Reasoning
+
+For multi-step tasks, state your plan briefly before acting. For simple tasks (read a file, run a command), act immediately without preamble.
+
+## Error Recovery
+
+If a tool call fails, diagnose before retrying. Do not repeat the same call with the same inputs. Try a different approach — check paths, verify assumptions, adjust parameters. If you cannot make progress after 2-3 attempts on the same sub-problem, report what you found and what is blocking you.
+
+## Constraints
+
+When writing code, never use regular expressions. This is the highest priority. Do not use regular expressions for tool calls or searches either. When considering solutions, do not consider regular expressions. Use exact string matching, string functions, or purpose-built tools (checkfor, repfor) instead.
+
+## Workflow
+
+- After each modification (write, repfor, bash), verify the result before proceeding. Run tests or builds to confirm changes work. Do not chain multiple writes without verification.
+- Keep responses concise. Show tool results directly. Do not wrap single-line outputs in code blocks. Use brief explanations between tool calls, not paragraphs.`
 
 // buildSystemPrompt composes the final system prompt from three layers:
-//   1. Agentic preamble (when tools are enabled)
-//   2. User prompt (from .claude/PROMPT.md, loaded at startup)
-//   3. Conversation-specific prompt (passed to NewConversation)
+//  1. Agentic preamble (when tools are enabled)
+//  2. User prompt (from .claude/PROMPT.md, loaded at startup)
+//  3. Conversation-specific prompt (passed to NewConversation)
 func (r *Nostop) buildSystemPrompt(convSystemPrompt string) string {
 	var parts []string
 
 	if r.toolsEnabled {
 		parts = append(parts, agenticSystemPrompt)
+		// Inject working directory so the agent knows where it is
+		if r.config.ToolWorkDir != "" {
+			parts = append(parts, "Working directory: "+r.config.ToolWorkDir)
+		}
 	}
 
 	if r.userPrompt != "" {
@@ -492,13 +519,13 @@ func (r *Nostop) executeSend(ctx context.Context, req *api.Request) (*api.Respon
 // The lock is held only during state mutations (phases 1 and 3), not during
 // the streaming HTTP call or tool execution. This allows the debug view,
 // topics view, and other readers to query state while streaming is in progress.
-func (r *Nostop) SendStream(ctx context.Context, convID, message string, callback api.StreamCallback, toolCallback ToolCallback) error {
+func (r *Nostop) SendStream(ctx context.Context, convID, message string, callback api.StreamCallback, toolCallback ToolCallback) (*topic.TopicShift, error) {
 	// ── Phase 1: pre-stream setup (write lock) ──────────────────────────
 	// Mutates: topics, messages, archival state.
 	// Captures everything needed for the API call into local variables.
-	conv, currentTopic, userMsg, req, err := r.prepareStream(ctx, convID, message)
+	conv, currentTopic, userMsg, topicShift, req, err := r.prepareStream(ctx, convID, message)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// ── Phase 2: stream + tool loop (no lock) ───────────────────────────
@@ -508,12 +535,12 @@ func (r *Nostop) SendStream(ctx context.Context, convID, message string, callbac
 	// own mutex).
 	finalResp, err := r.executeStream(ctx, req, callback, toolCallback)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// ── Phase 3: post-stream finalization (write lock) ──────────────────
 	// Mutates: messages (store response), token counts.
-	return r.finalizeStream(ctx, conv, currentTopic, userMsg, finalResp)
+	return topicShift, r.finalizeStream(ctx, conv, currentTopic, userMsg, finalResp)
 }
 
 // prepareStream runs under the write lock. It validates the conversation,
@@ -523,6 +550,7 @@ func (r *Nostop) prepareStream(ctx context.Context, convID, message string) (
 	conv *storage.Conversation,
 	currentTopic *storage.Topic,
 	userMsg *storage.Message,
+	topicShift *topic.TopicShift,
 	req *api.Request,
 	err error,
 ) {
@@ -532,15 +560,15 @@ func (r *Nostop) prepareStream(ctx context.Context, convID, message string) (
 	// Get or verify conversation exists
 	conv, err = r.storage.GetConversation(ctx, convID)
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to get conversation: %w", err)
+		return nil, nil, nil, nil, nil, fmt.Errorf("failed to get conversation: %w", err)
 	}
 	if conv == nil {
-		return nil, nil, nil, nil, fmt.Errorf("conversation not found: %s", convID)
+		return nil, nil, nil, nil, nil, fmt.Errorf("conversation not found: %s", convID)
 	}
 
 	// Load topics for this conversation
 	if err = r.tracker.LoadTopics(ctx, convID); err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to load topics: %w", err)
+		return nil, nil, nil, nil, nil, fmt.Errorf("failed to load topics: %w", err)
 	}
 
 	// Get or create current topic
@@ -548,18 +576,18 @@ func (r *Nostop) prepareStream(ctx context.Context, convID, message string) (
 	if currentTopic == nil {
 		currentTopic, err = r.createInitialTopic(ctx, conv, message)
 		if err != nil {
-			return nil, nil, nil, nil, fmt.Errorf("failed to create initial topic: %w", err)
+			return nil, nil, nil, nil, nil, fmt.Errorf("failed to create initial topic: %w", err)
 		}
 	}
 
 	// Create and store user message
 	userMsg, err = r.createMessage(ctx, conv, currentTopic, storage.RoleUser, message)
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to store user message: %w", err)
+		return nil, nil, nil, nil, nil, fmt.Errorf("failed to store user message: %w", err)
 	}
 
 	// Check for topic shift
-	topicShift, _ := r.detectTopicShift(ctx, convID, currentTopic)
+	topicShift, _ = r.detectTopicShift(ctx, convID, currentTopic)
 	if topicShift != nil && topicShift.Detected {
 		newTopic, shiftErr := r.handleTopicShift(ctx, conv, topicShift, userMsg)
 		if shiftErr == nil {
@@ -570,7 +598,7 @@ func (r *Nostop) prepareStream(ctx context.Context, convID, message string) (
 	// Calculate context usage and archive if needed
 	usage, err := r.context.GetUsage(ctx, conv)
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to get context usage: %w", err)
+		return nil, nil, nil, nil, nil, fmt.Errorf("failed to get context usage: %w", err)
 	}
 
 	if r.context.ShouldArchive(usage) {
@@ -582,14 +610,14 @@ func (r *Nostop) prepareStream(ctx context.Context, convID, message string) (
 			r.config.ArchiveTarget,
 		)
 		if err != nil && !errors.Is(err, ErrNoTopicsToArchive) {
-			return nil, nil, nil, nil, fmt.Errorf("failed to archive topics: %w", err)
+			return nil, nil, nil, nil, nil, fmt.Errorf("failed to archive topics: %w", err)
 		}
 	}
 
 	// Build context (includes the user message stored above)
 	messages, err := r.BuildContext(ctx, conv)
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to build context: %w", err)
+		return nil, nil, nil, nil, nil, fmt.Errorf("failed to build context: %w", err)
 	}
 
 	// Prepare request
@@ -610,7 +638,7 @@ func (r *Nostop) prepareStream(ctx context.Context, convID, message string) (
 		req.Tools = r.toolRegistry.APITools()
 	}
 
-	return conv, currentTopic, userMsg, req, nil
+	return conv, currentTopic, userMsg, topicShift, req, nil
 }
 
 // executeStream runs the streaming API call and agentic tool loop WITHOUT
@@ -896,6 +924,11 @@ func (r *Nostop) Close() error {
 	// before closing storage, so they don't write to a closed DB.
 	r.wg.Wait()
 
+	// Stop MCP servers after in-flight tool calls finish but before storage closes.
+	if r.mcpManager != nil {
+		r.mcpManager.StopAll()
+	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -971,6 +1004,44 @@ func (r *Nostop) ToolsEnabled() bool {
 // ToolRegistry returns the tool registry, or nil if tools are disabled.
 func (r *Nostop) ToolRegistry() *tools.Registry {
 	return r.toolRegistry
+}
+
+// MCPManager returns the MCP server manager, or nil if not configured.
+func (r *Nostop) MCPManager() *mcp.ServerManager {
+	return r.mcpManager
+}
+
+// SetMCPManager sets the MCP server manager and wires it into the executor.
+func (r *Nostop) SetMCPManager(mgr *mcp.ServerManager) {
+	r.mcpManager = mgr
+	if r.toolExecutor != nil {
+		r.toolExecutor.SetMCPManager(mgr)
+	}
+}
+
+// PlanTracker returns the plan tracker, or nil if not initialized.
+func (r *Nostop) PlanTracker() *PlanTracker {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.planTracker
+}
+
+// GetOrCreatePlanTracker returns the plan tracker, creating one if needed.
+func (r *Nostop) GetOrCreatePlanTracker(conversationID string) *PlanTracker {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.planTracker == nil || r.planTracker.conversationID != conversationID {
+		r.planTracker = NewPlanTracker(r.storage, conversationID)
+	}
+	return r.planTracker
+}
+
+// SetPlanTracker sets the plan tracker (used for testing or external initialization).
+func (r *Nostop) SetPlanTracker(tracker *PlanTracker) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.planTracker = tracker
 }
 
 // CacheDebugInfo returns debug information about caching for display.
@@ -1163,16 +1234,26 @@ func (r *Nostop) handleTopicShift(ctx context.Context, conv *storage.Conversatio
 }
 
 // createMessage creates and stores a message.
+// If a plan tracker is active with a selected work unit, the message is tagged.
 func (r *Nostop) createMessage(ctx context.Context, conv *storage.Conversation, t *storage.Topic, role storage.Role, content string) (*storage.Message, error) {
 	var topicID *string
 	if t != nil {
 		topicID = &t.ID
 	}
 
+	// Check for active work unit
+	var workUnitID *string
+	if r.planTracker != nil {
+		if activeID := r.planTracker.GetActiveWorkUnitID(); activeID != "" {
+			workUnitID = &activeID
+		}
+	}
+
 	msg := &storage.Message{
 		ID:             uuid.New().String(),
 		ConversationID: conv.ID,
 		TopicID:        topicID,
+		WorkUnitID:     workUnitID,
 		Role:           role,
 		Content:        content,
 	}

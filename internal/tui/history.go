@@ -12,13 +12,11 @@ import (
 	"github.com/hegner123/nostop/internal/storage"
 )
 
-// HistoryModel represents the conversation history browser view.
+// HistoryModel represents the topic history browser view.
 type HistoryModel struct {
 	ctx           context.Context
 	storage       *storage.SQLite
-	conversations []storage.Conversation
-	messageCounts map[string]int // conversation ID -> message count
-	topicCounts   map[string]int // conversation ID -> topic count
+	topics        []storage.TopicWithCounts
 	list          list.Model
 	selected      int
 	width         int
@@ -26,68 +24,69 @@ type HistoryModel struct {
 	loading       bool
 	err           error
 	confirmDelete bool   // whether we're in delete confirmation mode
-	deleteTarget  string // ID of conversation to delete
+	deleteTarget  string // ID of topic to delete
 	styles        Styles
 }
 
-// conversationItem implements list.Item for displaying conversations.
-type conversationItem struct {
-	conv         storage.Conversation
-	messageCount int
-	topicCount   int
+// topicItem implements list.Item for displaying topics.
+type topicItem struct {
+	topic storage.TopicWithCounts
 }
 
-func (i conversationItem) Title() string {
-	title := i.conv.Title
-	if title == "" {
-		title = "Untitled Conversation"
+func (i topicItem) Title() string {
+	name := i.topic.Name
+	if name == "" {
+		name = "Untitled Topic"
 	}
-	return title
+	// Add status indicators
+	if i.topic.IsCurrent {
+		name = "★ " + name
+	}
+	if i.topic.IsArchived() {
+		name = name + " [archived]"
+	}
+	return name
 }
 
-func (i conversationItem) Description() string {
-	dateStr := i.conv.CreatedAt.Format("2006-01-02")
+func (i topicItem) Description() string {
+	dateStr := i.topic.UpdatedAt.Format("2006-01-02 15:04")
 	msgPlural := "messages"
-	if i.messageCount == 1 {
+	if i.topic.MessageCount == 1 {
 		msgPlural = "message"
 	}
-	topicPlural := "topics"
-	if i.topicCount == 1 {
-		topicPlural = "topic"
-	}
-	return fmt.Sprintf("Created: %s | %d %s | %d %s", dateStr, i.messageCount, msgPlural, i.topicCount, topicPlural)
+	tokenStr := formatTokenCount(i.topic.TokenCount)
+	return fmt.Sprintf("Updated: %s | %d %s | %s tokens", dateStr, i.topic.MessageCount, msgPlural, tokenStr)
 }
 
-func (i conversationItem) FilterValue() string {
-	return i.conv.Title
+func (i topicItem) FilterValue() string {
+	return i.topic.Name
 }
 
 // Custom messages for history view.
 
-// ConversationsLoadedMsg indicates conversations have been loaded from storage.
-type ConversationsLoadedMsg struct {
-	Conversations []storage.Conversation
-	MessageCounts map[string]int
-	TopicCounts   map[string]int
+// TopicsHistoryLoadedMsg indicates topics have been loaded from storage.
+type TopicsHistoryLoadedMsg struct {
+	Topics []storage.TopicWithCounts
 }
 
-// ConversationsLoadErrorMsg indicates an error loading conversations.
-type ConversationsLoadErrorMsg struct {
+// TopicsHistoryLoadErrorMsg indicates an error loading topics.
+type TopicsHistoryLoadErrorMsg struct {
 	Err error
 }
 
-// ConversationSelectedMsg indicates a conversation was selected.
-type ConversationSelectedMsg struct {
-	ConvID string
+// TopicSelectedMsg indicates a topic was selected.
+type TopicSelectedMsg struct {
+	TopicID        string
+	ConversationID string
 }
 
-// ConversationDeletedMsg indicates a conversation was deleted.
-type ConversationDeletedMsg struct {
-	ConvID string
+// TopicDeletedMsg indicates a topic was deleted.
+type TopicDeletedMsg struct {
+	TopicID string
 }
 
-// ConversationDeleteErrorMsg indicates an error deleting a conversation.
-type ConversationDeleteErrorMsg struct {
+// TopicDeleteErrorMsg indicates an error deleting a topic.
+type TopicDeleteErrorMsg struct {
 	Err error
 }
 
@@ -97,9 +96,9 @@ func NewHistoryModel(store *storage.SQLite, ctx context.Context, width, height i
 	delegate := list.NewDefaultDelegate()
 	delegate.ShowDescription = true
 
-	// Create an empty list - will be populated when conversations load
+	// Create an empty list - will be populated when topics load
 	l := list.New([]list.Item{}, delegate, width-4, height-8)
-	l.Title = "Conversation History"
+	l.Title = "Topic History"
 	l.SetShowStatusBar(true)
 	l.SetFilteringEnabled(true)
 	l.SetShowHelp(false) // We render our own help
@@ -110,71 +109,48 @@ func NewHistoryModel(store *storage.SQLite, ctx context.Context, width, height i
 	l.Styles.Title = styles.PanelTitle
 
 	return &HistoryModel{
-		ctx:           ctx,
-		storage:       store,
-		list:          l,
-		width:         width,
-		height:        height,
-		loading:       true,
-		messageCounts: make(map[string]int),
-		topicCounts:   make(map[string]int),
-		styles:        styles,
+		ctx:     ctx,
+		storage: store,
+		list:    l,
+		width:   width,
+		height:  height,
+		loading: true,
+		styles:  styles,
 	}
 }
 
 // Init implements tea.Model.
 func (m *HistoryModel) Init() tea.Cmd {
-	return m.loadConversations()
+	return m.loadTopics()
 }
 
-// loadConversations returns a command to load conversations from storage.
-func (m *HistoryModel) loadConversations() tea.Cmd {
+// loadTopics returns a command to load topics from storage.
+func (m *HistoryModel) loadTopics() tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(m.ctx, 5*time.Second)
 		defer cancel()
 
-		conversations, err := m.storage.ListConversations(ctx, 100, 0)
+		topics, err := m.storage.ListAllTopics(ctx, 100, 0)
 		if err != nil {
-			return ConversationsLoadErrorMsg{Err: err}
+			return TopicsHistoryLoadErrorMsg{Err: err}
 		}
 
-		messageCounts := make(map[string]int)
-		topicCounts := make(map[string]int)
-
-		for _, conv := range conversations {
-			// Get message count
-			messages, err := m.storage.ListMessages(ctx, conv.ID)
-			if err == nil {
-				messageCounts[conv.ID] = len(messages)
-			}
-
-			// Get topic count
-			topics, err := m.storage.ListTopics(ctx, conv.ID)
-			if err == nil {
-				topicCounts[conv.ID] = len(topics)
-			}
-		}
-
-		return ConversationsLoadedMsg{
-			Conversations: conversations,
-			MessageCounts: messageCounts,
-			TopicCounts:   topicCounts,
-		}
+		return TopicsHistoryLoadedMsg{Topics: topics}
 	}
 }
 
-// deleteConversation returns a command to delete a conversation.
-func (m *HistoryModel) deleteConversation(convID string) tea.Cmd {
+// deleteTopic returns a command to delete a topic.
+func (m *HistoryModel) deleteTopic(topicID string) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(m.ctx, 5*time.Second)
 		defer cancel()
 
-		err := m.storage.DeleteConversation(ctx, convID)
+		err := m.storage.DeleteTopic(ctx, topicID)
 		if err != nil {
-			return ConversationDeleteErrorMsg{Err: err}
+			return TopicDeleteErrorMsg{Err: err}
 		}
 
-		return ConversationDeletedMsg{ConvID: convID}
+		return TopicDeletedMsg{TopicID: topicID}
 	}
 }
 
@@ -183,26 +159,22 @@ func (m *HistoryModel) Update(msg tea.Msg) (*HistoryModel, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
-	case ConversationsLoadedMsg:
+	case TopicsHistoryLoadedMsg:
 		m.loading = false
-		m.conversations = msg.Conversations
-		m.messageCounts = msg.MessageCounts
-		m.topicCounts = msg.TopicCounts
+		m.topics = msg.Topics
 		m.updateListItems()
 		return m, nil
 
-	case ConversationsLoadErrorMsg:
+	case TopicsHistoryLoadErrorMsg:
 		m.loading = false
 		m.err = msg.Err
 		return m, nil
 
-	case ConversationDeletedMsg:
+	case TopicDeletedMsg:
 		// Remove from local list
-		for i, conv := range m.conversations {
-			if conv.ID == msg.ConvID {
-				m.conversations = append(m.conversations[:i], m.conversations[i+1:]...)
-				delete(m.messageCounts, msg.ConvID)
-				delete(m.topicCounts, msg.ConvID)
+		for i, t := range m.topics {
+			if t.ID == msg.TopicID {
+				m.topics = append(m.topics[:i], m.topics[i+1:]...)
 				break
 			}
 		}
@@ -211,7 +183,7 @@ func (m *HistoryModel) Update(msg tea.Msg) (*HistoryModel, tea.Cmd) {
 		m.updateListItems()
 		return m, nil
 
-	case ConversationDeleteErrorMsg:
+	case TopicDeleteErrorMsg:
 		m.err = msg.Err
 		m.confirmDelete = false
 		m.deleteTarget = ""
@@ -223,7 +195,7 @@ func (m *HistoryModel) Update(msg tea.Msg) (*HistoryModel, tea.Cmd) {
 			switch msg.String() {
 			case "y", "Y":
 				// Confirm deletion
-				cmd := m.deleteConversation(m.deleteTarget)
+				cmd := m.deleteTopic(m.deleteTarget)
 				return m, cmd
 			case "n", "N", "esc":
 				// Cancel deletion
@@ -237,25 +209,28 @@ func (m *HistoryModel) Update(msg tea.Msg) (*HistoryModel, tea.Cmd) {
 		// Normal key handling
 		switch msg.String() {
 		case "enter":
-			// Select the current conversation
-			if item, ok := m.list.SelectedItem().(conversationItem); ok {
+			// Select the current topic
+			if item, ok := m.list.SelectedItem().(topicItem); ok {
 				return m, func() tea.Msg {
-					return ConversationSelectedMsg{ConvID: item.conv.ID}
+					return TopicSelectedMsg{
+						TopicID:        item.topic.ID,
+						ConversationID: item.topic.ConversationID,
+					}
 				}
 			}
 
 		case "d", "delete", "backspace":
 			// Initiate delete with confirmation
-			if item, ok := m.list.SelectedItem().(conversationItem); ok {
+			if item, ok := m.list.SelectedItem().(topicItem); ok {
 				m.confirmDelete = true
-				m.deleteTarget = item.conv.ID
+				m.deleteTarget = item.topic.ID
 				return m, nil
 			}
 
 		case "r":
 			// Refresh the list
 			m.loading = true
-			return m, m.loadConversations()
+			return m, m.loadTopics()
 		}
 	}
 
@@ -269,15 +244,11 @@ func (m *HistoryModel) Update(msg tea.Msg) (*HistoryModel, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-// updateListItems updates the list items from the conversations slice.
+// updateListItems updates the list items from the topics slice.
 func (m *HistoryModel) updateListItems() {
-	items := make([]list.Item, len(m.conversations))
-	for i, conv := range m.conversations {
-		items[i] = conversationItem{
-			conv:         conv,
-			messageCount: m.messageCounts[conv.ID],
-			topicCount:   m.topicCounts[conv.ID],
-		}
+	items := make([]list.Item, len(m.topics))
+	for i, t := range m.topics {
+		items[i] = topicItem{topic: t}
 	}
 	m.list.SetItems(items)
 }
@@ -287,7 +258,7 @@ func (m *HistoryModel) View() string {
 	var b strings.Builder
 
 	if m.loading {
-		b.WriteString(m.styles.SystemMessage.Render("Loading conversations..."))
+		b.WriteString(m.styles.SystemMessage.Render("Loading topics..."))
 		return b.String()
 	}
 
@@ -299,13 +270,13 @@ func (m *HistoryModel) View() string {
 
 	// Show delete confirmation if active
 	if m.confirmDelete {
-		// Find the conversation being deleted
-		var title string
-		for _, conv := range m.conversations {
-			if conv.ID == m.deleteTarget {
-				title = conv.Title
-				if title == "" {
-					title = "Untitled Conversation"
+		// Find the topic being deleted
+		var name string
+		for _, t := range m.topics {
+			if t.ID == m.deleteTarget {
+				name = t.Name
+				if name == "" {
+					name = "Untitled Topic"
 				}
 				break
 			}
@@ -315,9 +286,9 @@ func (m *HistoryModel) View() string {
 			Width(m.width - 10).
 			BorderForeground(lipgloss.Color("196")).
 			Render(fmt.Sprintf(
-				"%s\n\nDelete conversation \"%s\"?\n\nThis action cannot be undone.\n\n%s  %s",
+				"%s\n\nDelete topic \"%s\"?\n\nThis action cannot be undone.\n\n%s  %s",
 				m.styles.WarningLabel.Render("CONFIRM DELETE"),
-				title,
+				name,
 				m.styles.HelpKey.Render("y")+" yes",
 				m.styles.HelpKey.Render("n")+" no",
 			))
@@ -325,11 +296,11 @@ func (m *HistoryModel) View() string {
 		return b.String()
 	}
 
-	if len(m.conversations) == 0 {
+	if len(m.topics) == 0 {
 		emptyMsg := m.styles.Panel.
 			Width(m.width - 6).
 			Height(m.height - 10).
-			Render("No conversations yet.\n\nPress Ctrl+N to start a new conversation.")
+			Render("No topics yet.\n\nStart chatting to create your first topic.")
 		b.WriteString(emptyMsg)
 		return b.String()
 	}
@@ -347,18 +318,18 @@ func (m *HistoryModel) SetSize(width, height int) {
 	m.list.SetSize(width-4, height-8)
 }
 
-// SelectedConversation returns the currently selected conversation, if any.
-func (m *HistoryModel) SelectedConversation() *storage.Conversation {
-	if item, ok := m.list.SelectedItem().(conversationItem); ok {
-		return &item.conv
+// SelectedTopic returns the currently selected topic, if any.
+func (m *HistoryModel) SelectedTopic() *storage.TopicWithCounts {
+	if item, ok := m.list.SelectedItem().(topicItem); ok {
+		return &item.topic
 	}
 	return nil
 }
 
-// Refresh reloads conversations from storage.
+// Refresh reloads topics from storage.
 func (m *HistoryModel) Refresh() tea.Cmd {
 	m.loading = true
-	return m.loadConversations()
+	return m.loadTopics()
 }
 
 // OverlayUpdate implements ModalOverlay.

@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/hegner123/nostop/internal/mcp"
 )
 
 const (
@@ -32,12 +34,14 @@ type Result struct {
 }
 
 // Executor runs tool binaries as subprocesses, mapping Claude's JSON input
-// parameters to CLI flags via the tool's FlagMap.
+// parameters to CLI flags via the tool's FlagMap. MCP tools are dispatched
+// via the ServerManager instead.
 type Executor struct {
 	registry       *Registry
 	defaultTimeout time.Duration
 	workDir        string
 	readTracker    *ReadTracker
+	mcpManager     *mcp.ServerManager
 }
 
 // NewExecutor creates an executor bound to a registry and working directory.
@@ -49,6 +53,11 @@ func NewExecutor(registry *Registry, workDir string) *Executor {
 		workDir:        workDir,
 		readTracker:    NewReadTracker(),
 	}
+}
+
+// SetMCPManager sets the MCP server manager for dispatching MCP tool calls.
+func (e *Executor) SetMCPManager(mgr *mcp.ServerManager) {
+	e.mcpManager = mgr
 }
 
 // ReadTracker returns the executor's read tracker for inspection/testing.
@@ -72,10 +81,12 @@ func (e *Executor) Execute(ctx context.Context, name string, input map[string]an
 
 	start := time.Now()
 
-	// Dispatch builtins directly — no subprocess needed
+	// Dispatch based on tool type
 	var result Result
 	if def.IsBuiltinTool() {
 		result = e.executeBuiltin(ctx, def, input)
+	} else if def.IsMCPTool() {
+		result = e.executeMCP(ctx, def, input)
 	} else {
 		result = e.executeSubprocess(ctx, def, input)
 	}
@@ -350,4 +361,56 @@ func toStringSlice(v any) []string {
 	default:
 		return nil
 	}
+}
+
+// executeMCP dispatches a tool call to an MCP server via the ServerManager.
+func (e *Executor) executeMCP(ctx context.Context, def ToolDef, input map[string]any) Result {
+	if e.mcpManager == nil {
+		return Result{
+			IsError: true,
+			Error:   fmt.Sprintf("MCP tool %q: no MCP manager configured", def.Name),
+		}
+	}
+
+	// Strip namespace prefix to get the bare tool name the MCP server expects.
+	// Registry name: "mcp__stump__stump" -> server expects: "stump"
+	bareToolName := mcpBareToolName(def.Name)
+
+	result, err := e.mcpManager.CallTool(ctx, def.MCPServer, bareToolName, input)
+	if err != nil {
+		return Result{
+			IsError: true,
+			Error:   err.Error(),
+		}
+	}
+
+	return Result{
+		Output:  extractMCPText(result),
+		IsError: result.IsError,
+	}
+}
+
+// mcpBareToolName strips the "mcp__<server>__" prefix from a namespaced tool name.
+func mcpBareToolName(name string) string {
+	parts := strings.SplitN(name, "__", 3)
+	if len(parts) == 3 {
+		return parts[2]
+	}
+	return name
+}
+
+// extractMCPText concatenates all text content blocks from an MCP tool result,
+// separated by newlines. Non-text blocks (image, resource) are represented
+// as "[<type> content]" placeholders.
+func extractMCPText(result *mcp.ToolResult) string {
+	var parts []string
+	for _, block := range result.Content {
+		switch block.Type {
+		case "text":
+			parts = append(parts, block.Text)
+		default:
+			parts = append(parts, fmt.Sprintf("[%s content]", block.Type))
+		}
+	}
+	return strings.Join(parts, "\n")
 }

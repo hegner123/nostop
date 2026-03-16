@@ -9,6 +9,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/hegner123/nostop/internal/mcp"
 	"github.com/hegner123/nostop/internal/topic"
 	"github.com/hegner123/nostop/pkg/nostop"
 )
@@ -26,6 +27,7 @@ type DebugModel struct {
 	ctx         context.Context
 	contextMgr  *nostop.ContextManager
 	tracker     *topic.TopicTracker
+	mcpManager  *mcp.ServerManager
 	convID      string
 	usage       *nostop.ContextUsage
 	width       int
@@ -136,6 +138,10 @@ func (d DebugModel) View() string {
 
 	// Thresholds section
 	b.WriteString(d.renderThresholds())
+	b.WriteString("\n\n")
+
+	// MCP servers section
+	b.WriteString(d.renderMCPServers())
 	b.WriteString("\n\n")
 
 	// Archive events section
@@ -381,6 +387,89 @@ func (d DebugModel) renderArchiveEvents() string {
 	}
 
 	return b.String()
+}
+
+// renderMCPServers renders the MCP server status section.
+func (d DebugModel) renderMCPServers() string {
+	var b strings.Builder
+
+	headerStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("240")).
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderBottom(true).
+		BorderForeground(lipgloss.Color("240"))
+
+	b.WriteString(headerStyle.Render("MCP Servers"))
+	b.WriteString("\n")
+
+	if d.mcpManager == nil {
+		b.WriteString(d.styles.Placeholder.Render("No MCP servers configured"))
+		return b.String()
+	}
+
+	names := d.mcpManager.ServerNames()
+	if len(names) == 0 {
+		b.WriteString(d.styles.Placeholder.Render("No MCP servers configured"))
+		return b.String()
+	}
+
+	sort.Strings(names)
+
+	for _, name := range names {
+		info, ok := d.mcpManager.ServerInfo(name)
+		if !ok {
+			continue
+		}
+
+		// Status with color coding
+		var statusStyle lipgloss.Style
+		switch info.Status {
+		case mcp.ServerReady:
+			statusStyle = d.styles.Success
+		case mcp.ServerStarting:
+			statusStyle = d.styles.Info
+		case mcp.ServerError:
+			statusStyle = d.styles.Error
+		case mcp.ServerStopped:
+			statusStyle = d.styles.Placeholder
+		default:
+			statusStyle = d.styles.StatusText
+		}
+
+		// Tool count
+		toolCount := len(info.Tools)
+		toolStr := fmt.Sprintf("%d tool", toolCount)
+		if toolCount != 1 {
+			toolStr += "s"
+		}
+
+		// Transport type
+		transport := info.Config.TransportType()
+
+		line := fmt.Sprintf("%-14s %s  %-7s  %s",
+			truncateString(name, 14),
+			statusStyle.Render(fmt.Sprintf("%-8s", info.Status.String())),
+			toolStr,
+			transport)
+		b.WriteString(line)
+
+		// Show error message for failed servers
+		if info.Status == mcp.ServerError && info.Error != nil {
+			b.WriteString("\n")
+			errMsg := truncateString(info.Error.Error(), 50)
+			b.WriteString(fmt.Sprintf("%-14s %s", "", d.styles.Error.Render(errMsg)))
+		}
+
+		b.WriteString("\n")
+	}
+
+	return strings.TrimRight(b.String(), "\n")
+}
+
+// SetMCPManager sets the MCP server manager for status display.
+func (d *DebugModel) SetMCPManager(mgr *mcp.ServerManager) {
+	d.mcpManager = mgr
 }
 
 // renderMiniBar renders a small progress bar.

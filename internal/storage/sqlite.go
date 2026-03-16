@@ -51,13 +51,52 @@ func (s *SQLite) DB() *sql.DB {
 	return s.db
 }
 
-// InitSchema creates the database schema.
+// InitSchema creates the database schema and runs any pending migrations.
 func (s *SQLite) InitSchema() error {
-	_, err := s.db.Exec(Schema)
-	if err != nil {
+	// Create base tables (no-op if they already exist).
+	if _, err := s.db.Exec(BaseSchema); err != nil {
 		return fmt.Errorf("failed to create schema: %w", err)
 	}
+
+	// Run migrations to add columns that may be missing from older databases.
+	// Each ALTER TABLE is idempotent: "duplicate column name" means it already exists.
+	for _, m := range Migrations {
+		if _, err := s.db.Exec(m); err != nil {
+			// SQLite returns "duplicate column name: <col>" when the column already exists.
+			// That is expected and safe to ignore.
+			if !isDuplicateColumnError(err) {
+				return fmt.Errorf("failed to run migration: %w", err)
+			}
+		}
+	}
+
+	// Create indexes on migration-added columns now that they exist.
+	if _, err := s.db.Exec(PostMigrationSchema); err != nil {
+		return fmt.Errorf("failed to create post-migration indexes: %w", err)
+	}
+
 	return nil
+}
+
+// isDuplicateColumnError checks if the error is SQLite's "duplicate column name" error,
+// which is expected when running idempotent ALTER TABLE ADD COLUMN migrations.
+func isDuplicateColumnError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	// modernc.org/sqlite wraps the error; check the message text.
+	return len(msg) >= 21 && contains(msg, "duplicate column name")
+}
+
+// contains checks if s contains substr without importing strings.
+func contains(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }
 
 // ----------------------------------------------------------------------------
@@ -315,6 +354,43 @@ func (s *SQLite) ListTopics(ctx context.Context, conversationID string) ([]Topic
 	return topics, rows.Err()
 }
 
+// ListAllTopics retrieves all topics across all conversations, ordered by updated_at desc.
+// Returns topics with their message counts for display in history view.
+func (s *SQLite) ListAllTopics(ctx context.Context, limit, offset int) ([]TopicWithCounts, error) {
+	query := `
+		SELECT t.id, t.conversation_id, t.name, t.keywords, t.token_count, t.relevance_score, 
+		       t.is_current, t.archived_at, t.created_at, t.updated_at,
+		       (SELECT COUNT(*) FROM messages WHERE topic_id = t.id) as message_count
+		FROM topics t
+		ORDER BY t.updated_at DESC
+		LIMIT ? OFFSET ?
+	`
+	rows, err := s.db.QueryContext(ctx, query, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list all topics: %w", err)
+	}
+	defer rows.Close()
+
+	var topics []TopicWithCounts
+	for rows.Next() {
+		var twc TopicWithCounts
+		var keywordsJSON string
+		err := rows.Scan(
+			&twc.ID, &twc.ConversationID, &twc.Name, &keywordsJSON,
+			&twc.TokenCount, &twc.RelevanceScore, &twc.IsCurrent, &twc.ArchivedAt,
+			&twc.CreatedAt, &twc.UpdatedAt, &twc.MessageCount,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan topic: %w", err)
+		}
+		if err := twc.SetKeywordsFromJSON(keywordsJSON); err != nil {
+			return nil, fmt.Errorf("failed to parse keywords: %w", err)
+		}
+		topics = append(topics, twc)
+	}
+	return topics, rows.Err()
+}
+
 // GetCurrentTopic retrieves the current topic for a conversation.
 func (s *SQLite) GetCurrentTopic(ctx context.Context, conversationID string) (*Topic, error) {
 	query := `
@@ -426,12 +502,13 @@ func (s *SQLite) CreateMessage(ctx context.Context, msg *Message) error {
 	msg.CreatedAt = time.Now()
 
 	query := `
-		INSERT INTO messages (id, conversation_id, topic_id, role, content, token_count, is_archived, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO messages (id, conversation_id, topic_id, role, content, token_count, is_archived, created_at, is_summary, summary_source, summary_source_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	_, err := s.db.ExecContext(ctx, query,
 		msg.ID, msg.ConversationID, msg.TopicID, msg.Role, msg.Content,
 		msg.TokenCount, msg.IsArchived, msg.CreatedAt,
+		msg.IsSummary, msg.SummarySource, msg.SummarySourceID,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create message: %w", err)
@@ -442,13 +519,15 @@ func (s *SQLite) CreateMessage(ctx context.Context, msg *Message) error {
 // GetMessage retrieves a message by ID.
 func (s *SQLite) GetMessage(ctx context.Context, id string) (*Message, error) {
 	query := `
-		SELECT id, conversation_id, topic_id, role, content, token_count, is_archived, created_at
+		SELECT id, conversation_id, topic_id, role, content, token_count, is_archived, created_at,
+		       COALESCE(is_summary, FALSE), COALESCE(summary_source, ''), summary_source_id
 		FROM messages WHERE id = ?
 	`
 	var msg Message
 	err := s.db.QueryRowContext(ctx, query, id).Scan(
 		&msg.ID, &msg.ConversationID, &msg.TopicID, &msg.Role, &msg.Content,
 		&msg.TokenCount, &msg.IsArchived, &msg.CreatedAt,
+		&msg.IsSummary, &msg.SummarySource, &msg.SummarySourceID,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -505,7 +584,8 @@ func (s *SQLite) DeleteMessage(ctx context.Context, id string) error {
 // ListMessages retrieves all messages for a conversation.
 func (s *SQLite) ListMessages(ctx context.Context, conversationID string) ([]Message, error) {
 	query := `
-		SELECT id, conversation_id, topic_id, role, content, token_count, is_archived, created_at
+		SELECT id, conversation_id, topic_id, role, content, token_count, is_archived, created_at,
+		       COALESCE(is_summary, FALSE), COALESCE(summary_source, ''), summary_source_id
 		FROM messages
 		WHERE conversation_id = ?
 		ORDER BY created_at ASC
@@ -522,6 +602,7 @@ func (s *SQLite) ListMessages(ctx context.Context, conversationID string) ([]Mes
 		err := rows.Scan(
 			&msg.ID, &msg.ConversationID, &msg.TopicID, &msg.Role, &msg.Content,
 			&msg.TokenCount, &msg.IsArchived, &msg.CreatedAt,
+			&msg.IsSummary, &msg.SummarySource, &msg.SummarySourceID,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan message: %w", err)
@@ -534,7 +615,8 @@ func (s *SQLite) ListMessages(ctx context.Context, conversationID string) ([]Mes
 // ListActiveMessages retrieves all non-archived messages for a conversation.
 func (s *SQLite) ListActiveMessages(ctx context.Context, conversationID string) ([]Message, error) {
 	query := `
-		SELECT id, conversation_id, topic_id, role, content, token_count, is_archived, created_at
+		SELECT id, conversation_id, topic_id, role, content, token_count, is_archived, created_at,
+		       COALESCE(is_summary, FALSE), COALESCE(summary_source, ''), summary_source_id
 		FROM messages
 		WHERE conversation_id = ? AND is_archived = FALSE
 		ORDER BY created_at ASC
@@ -551,6 +633,7 @@ func (s *SQLite) ListActiveMessages(ctx context.Context, conversationID string) 
 		err := rows.Scan(
 			&msg.ID, &msg.ConversationID, &msg.TopicID, &msg.Role, &msg.Content,
 			&msg.TokenCount, &msg.IsArchived, &msg.CreatedAt,
+			&msg.IsSummary, &msg.SummarySource, &msg.SummarySourceID,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan message: %w", err)
@@ -563,7 +646,8 @@ func (s *SQLite) ListActiveMessages(ctx context.Context, conversationID string) 
 // ListMessagesByTopic retrieves all messages for a specific topic.
 func (s *SQLite) ListMessagesByTopic(ctx context.Context, topicID string) ([]Message, error) {
 	query := `
-		SELECT id, conversation_id, topic_id, role, content, token_count, is_archived, created_at
+		SELECT id, conversation_id, topic_id, role, content, token_count, is_archived, created_at,
+		       COALESCE(is_summary, FALSE), COALESCE(summary_source, ''), summary_source_id
 		FROM messages
 		WHERE topic_id = ?
 		ORDER BY created_at ASC
@@ -580,6 +664,7 @@ func (s *SQLite) ListMessagesByTopic(ctx context.Context, topicID string) ([]Mes
 		err := rows.Scan(
 			&msg.ID, &msg.ConversationID, &msg.TopicID, &msg.Role, &msg.Content,
 			&msg.TokenCount, &msg.IsArchived, &msg.CreatedAt,
+			&msg.IsSummary, &msg.SummarySource, &msg.SummarySourceID,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan message: %w", err)
@@ -593,8 +678,21 @@ func (s *SQLite) ListMessagesByTopic(ctx context.Context, topicID string) ([]Mes
 // Archive Operations
 // ----------------------------------------------------------------------------
 
-// ArchiveTopic archives a topic and its messages.
+// ArchiveTopic archives a topic and its messages without creating a summary.
+// For summary-on-archive, use ArchiveTopicWithSummary instead.
 func (s *SQLite) ArchiveTopic(ctx context.Context, topicID string, usageBefore, usageAfter float64) error {
+	return s.ArchiveTopicWithSummary(ctx, topicID, usageBefore, usageAfter, nil)
+}
+
+// SummaryMessageInput holds the data needed to create a summary message during archival.
+type SummaryMessageInput struct {
+	Content    string // The summary text content
+	TokenCount int    // Token count for the summary
+}
+
+// ArchiveTopicWithSummary archives a topic and its messages, optionally creating a summary message.
+// If summary is non-nil, a summary message is created that remains in active context.
+func (s *SQLite) ArchiveTopicWithSummary(ctx context.Context, topicID string, usageBefore, usageAfter float64, summary *SummaryMessageInput) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -673,6 +771,20 @@ func (s *SQLite) ArchiveTopic(ctx context.Context, topicID string, usageBefore, 
 		)
 		if err != nil {
 			return fmt.Errorf("failed to mark message as archived: %w", err)
+		}
+	}
+
+	// Create summary message if provided (stays in active context)
+	if summary != nil {
+		summaryID := uuid.New().String()
+		_, err = tx.ExecContext(ctx,
+			`INSERT INTO messages (id, conversation_id, topic_id, role, content, token_count, is_archived, created_at, is_summary, summary_source, summary_source_id)
+			VALUES (?, ?, ?, ?, ?, ?, FALSE, ?, TRUE, 'topic', ?)`,
+			summaryID, topic.ConversationID, topicID, RoleSystem, summary.Content,
+			summary.TokenCount, now, topicID,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to create summary message: %w", err)
 		}
 	}
 
@@ -976,4 +1088,289 @@ func (s *SQLite) UpdateConversationTokenCount(ctx context.Context, conversationI
 		return fmt.Errorf("failed to update conversation token count: %w", err)
 	}
 	return nil
+}
+
+// ----------------------------------------------------------------------------
+// Work Unit Operations (Phase B: Plan-Driven Execution)
+// ----------------------------------------------------------------------------
+
+// CreateWorkUnit creates a new work unit in the database.
+func (s *SQLite) CreateWorkUnit(ctx context.Context, unit *WorkUnit) error {
+    if unit.ID == "" {
+        return errors.New("work unit ID is required")
+    }
+    unit.CreatedAt = time.Now()
+
+    query := `
+        INSERT INTO work_units (id, conversation_id, plan_file, name, level, status, parent_id, line_number, created_at, completed_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `
+    _, err := s.db.ExecContext(ctx, query,
+        unit.ID, unit.ConversationID, unit.PlanFile, unit.Name, unit.Level,
+        unit.Status, unit.ParentID, unit.LineNumber, unit.CreatedAt, unit.CompletedAt,
+    )
+    if err != nil {
+        return fmt.Errorf("failed to create work unit: %w", err)
+    }
+    return nil
+}
+
+// GetWorkUnit retrieves a work unit by ID.
+func (s *SQLite) GetWorkUnit(ctx context.Context, id string) (*WorkUnit, error) {
+    query := `
+        SELECT id, conversation_id, plan_file, name, level, status, parent_id, line_number, created_at, completed_at
+        FROM work_units WHERE id = ?
+    `
+    var unit WorkUnit
+    err := s.db.QueryRowContext(ctx, query, id).Scan(
+        &unit.ID, &unit.ConversationID, &unit.PlanFile, &unit.Name, &unit.Level,
+        &unit.Status, &unit.ParentID, &unit.LineNumber, &unit.CreatedAt, &unit.CompletedAt,
+    )
+    if err == sql.ErrNoRows {
+        return nil, nil
+    }
+    if err != nil {
+        return nil, fmt.Errorf("failed to get work unit: %w", err)
+    }
+    return &unit, nil
+}
+
+// UpdateWorkUnitStatus updates the status of a work unit.
+func (s *SQLite) UpdateWorkUnitStatus(ctx context.Context, id string, status WorkUnitStatus) error {
+    var completedAt *time.Time
+    if status == WorkUnitComplete || status == WorkUnitArchived {
+        now := time.Now()
+        completedAt = &now
+    }
+
+    query := `UPDATE work_units SET status = ?, completed_at = ? WHERE id = ?`
+    result, err := s.db.ExecContext(ctx, query, status, completedAt, id)
+    if err != nil {
+        return fmt.Errorf("failed to update work unit status: %w", err)
+    }
+
+    rows, err := result.RowsAffected()
+    if err != nil {
+        return fmt.Errorf("failed to get rows affected: %w", err)
+    }
+    if rows == 0 {
+        return errors.New("work unit not found")
+    }
+    return nil
+}
+
+// DeleteWorkUnit deletes a work unit.
+func (s *SQLite) DeleteWorkUnit(ctx context.Context, id string) error {
+    query := "DELETE FROM work_units WHERE id = ?"
+    result, err := s.db.ExecContext(ctx, query, id)
+    if err != nil {
+        return fmt.Errorf("failed to delete work unit: %w", err)
+    }
+
+    rows, err := result.RowsAffected()
+    if err != nil {
+        return fmt.Errorf("failed to get rows affected: %w", err)
+    }
+    if rows == 0 {
+        return errors.New("work unit not found")
+    }
+    return nil
+}
+
+// ListWorkUnits retrieves all work units for a conversation.
+func (s *SQLite) ListWorkUnits(ctx context.Context, conversationID string) ([]WorkUnit, error) {
+    query := `
+        SELECT id, conversation_id, plan_file, name, level, status, parent_id, line_number, created_at, completed_at
+        FROM work_units
+        WHERE conversation_id = ?
+        ORDER BY line_number ASC
+    `
+    rows, err := s.db.QueryContext(ctx, query, conversationID)
+    if err != nil {
+        return nil, fmt.Errorf("failed to list work units: %w", err)
+    }
+    defer rows.Close()
+
+    var units []WorkUnit
+    for rows.Next() {
+        var unit WorkUnit
+        err := rows.Scan(
+            &unit.ID, &unit.ConversationID, &unit.PlanFile, &unit.Name, &unit.Level,
+            &unit.Status, &unit.ParentID, &unit.LineNumber, &unit.CreatedAt, &unit.CompletedAt,
+        )
+        if err != nil {
+            return nil, fmt.Errorf("failed to scan work unit: %w", err)
+        }
+        units = append(units, unit)
+    }
+    return units, rows.Err()
+}
+
+// ListWorkUnitsByPlan retrieves all work units for a specific plan file.
+func (s *SQLite) ListWorkUnitsByPlan(ctx context.Context, conversationID, planFile string) ([]WorkUnit, error) {
+    query := `
+        SELECT id, conversation_id, plan_file, name, level, status, parent_id, line_number, created_at, completed_at
+        FROM work_units
+        WHERE conversation_id = ? AND plan_file = ?
+        ORDER BY line_number ASC
+    `
+    rows, err := s.db.QueryContext(ctx, query, conversationID, planFile)
+    if err != nil {
+        return nil, fmt.Errorf("failed to list work units by plan: %w", err)
+    }
+    defer rows.Close()
+
+    var units []WorkUnit
+    for rows.Next() {
+        var unit WorkUnit
+        err := rows.Scan(
+            &unit.ID, &unit.ConversationID, &unit.PlanFile, &unit.Name, &unit.Level,
+            &unit.Status, &unit.ParentID, &unit.LineNumber, &unit.CreatedAt, &unit.CompletedAt,
+        )
+        if err != nil {
+            return nil, fmt.Errorf("failed to scan work unit: %w", err)
+        }
+        units = append(units, unit)
+    }
+    return units, rows.Err()
+}
+
+// GetChildWorkUnits retrieves all child work units for a parent.
+func (s *SQLite) GetChildWorkUnits(ctx context.Context, parentID string) ([]WorkUnit, error) {
+    query := `
+        SELECT id, conversation_id, plan_file, name, level, status, parent_id, line_number, created_at, completed_at
+        FROM work_units
+        WHERE parent_id = ?
+        ORDER BY line_number ASC
+    `
+    rows, err := s.db.QueryContext(ctx, query, parentID)
+    if err != nil {
+        return nil, fmt.Errorf("failed to get child work units: %w", err)
+    }
+    defer rows.Close()
+
+    var units []WorkUnit
+    for rows.Next() {
+        var unit WorkUnit
+        err := rows.Scan(
+            &unit.ID, &unit.ConversationID, &unit.PlanFile, &unit.Name, &unit.Level,
+            &unit.Status, &unit.ParentID, &unit.LineNumber, &unit.CreatedAt, &unit.CompletedAt,
+        )
+        if err != nil {
+            return nil, fmt.Errorf("failed to scan work unit: %w", err)
+        }
+        units = append(units, unit)
+    }
+    return units, rows.Err()
+}
+
+// GetWorkUnitsWithStatus retrieves work units with a specific status.
+func (s *SQLite) GetWorkUnitsWithStatus(ctx context.Context, conversationID string, status WorkUnitStatus) ([]WorkUnit, error) {
+    query := `
+        SELECT id, conversation_id, plan_file, name, level, status, parent_id, line_number, created_at, completed_at
+        FROM work_units
+        WHERE conversation_id = ? AND status = ?
+        ORDER BY line_number ASC
+    `
+    rows, err := s.db.QueryContext(ctx, query, conversationID, status)
+    if err != nil {
+        return nil, fmt.Errorf("failed to get work units by status: %w", err)
+    }
+    defer rows.Close()
+
+    var units []WorkUnit
+    for rows.Next() {
+        var unit WorkUnit
+        err := rows.Scan(
+            &unit.ID, &unit.ConversationID, &unit.PlanFile, &unit.Name, &unit.Level,
+            &unit.Status, &unit.ParentID, &unit.LineNumber, &unit.CreatedAt, &unit.CompletedAt,
+        )
+        if err != nil {
+            return nil, fmt.Errorf("failed to scan work unit: %w", err)
+        }
+        units = append(units, unit)
+    }
+    return units, rows.Err()
+}
+
+// ListMessagesByWorkUnit retrieves all messages for a specific work unit.
+func (s *SQLite) ListMessagesByWorkUnit(ctx context.Context, workUnitID string) ([]Message, error) {
+    query := `
+        SELECT id, conversation_id, topic_id, role, content, token_count, is_archived, created_at,
+               COALESCE(is_summary, FALSE), COALESCE(summary_source, ''), summary_source_id, work_unit_id
+        FROM messages
+        WHERE work_unit_id = ?
+        ORDER BY created_at ASC
+    `
+    rows, err := s.db.QueryContext(ctx, query, workUnitID)
+    if err != nil {
+        return nil, fmt.Errorf("failed to list messages by work unit: %w", err)
+    }
+    defer rows.Close()
+
+    var messages []Message
+    for rows.Next() {
+        var msg Message
+        err := rows.Scan(
+            &msg.ID, &msg.ConversationID, &msg.TopicID, &msg.Role, &msg.Content,
+            &msg.TokenCount, &msg.IsArchived, &msg.CreatedAt,
+            &msg.IsSummary, &msg.SummarySource, &msg.SummarySourceID, &msg.WorkUnitID,
+        )
+        if err != nil {
+            return nil, fmt.Errorf("failed to scan message: %w", err)
+        }
+        messages = append(messages, msg)
+    }
+    return messages, rows.Err()
+}
+
+// SetMessageWorkUnit assigns a message to a work unit.
+func (s *SQLite) SetMessageWorkUnit(ctx context.Context, messageID, workUnitID string) error {
+    query := `UPDATE messages SET work_unit_id = ? WHERE id = ?`
+    result, err := s.db.ExecContext(ctx, query, workUnitID, messageID)
+    if err != nil {
+        return fmt.Errorf("failed to set message work unit: %w", err)
+    }
+
+    rows, err := result.RowsAffected()
+    if err != nil {
+        return fmt.Errorf("failed to get rows affected: %w", err)
+    }
+    if rows == 0 {
+        return errors.New("message not found")
+    }
+    return nil
+}
+
+// SavePlanWorkUnits saves all work units from a parsed plan to the database.
+// Existing work units for the same plan file are deleted first.
+func (s *SQLite) SavePlanWorkUnits(ctx context.Context, conversationID, planFile string, units []WorkUnit) error {
+    tx, err := s.db.BeginTx(ctx, nil)
+    if err != nil {
+        return fmt.Errorf("failed to begin transaction: %w", err)
+    }
+    defer tx.Rollback()
+
+    // Delete existing work units for this plan
+    _, err = tx.ExecContext(ctx, "DELETE FROM work_units WHERE conversation_id = ? AND plan_file = ?",
+        conversationID, planFile)
+    if err != nil {
+        return fmt.Errorf("failed to delete existing work units: %w", err)
+    }
+
+    // Insert new work units
+    now := time.Now()
+    for _, unit := range units {
+        _, err = tx.ExecContext(ctx,
+            `INSERT INTO work_units (id, conversation_id, plan_file, name, level, status, parent_id, line_number, created_at, completed_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            unit.ID, conversationID, planFile, unit.Name, unit.Level,
+            unit.Status, unit.ParentID, unit.LineNumber, now, unit.CompletedAt,
+        )
+        if err != nil {
+            return fmt.Errorf("failed to insert work unit %s: %w", unit.ID, err)
+        }
+    }
+
+    return tx.Commit()
 }

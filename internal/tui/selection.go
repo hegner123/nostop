@@ -149,6 +149,15 @@ func (s *TextSelection) ExtractText(contentLines []string, yOffset int) string {
 	sLine += yOffset
 	eLine += yOffset
 
+	// Clamp to valid content range.
+	if sLine < 0 {
+		sLine = 0
+		sCol = 0
+	}
+	if eLine < 0 {
+		return ""
+	}
+
 	var sb strings.Builder
 	for i := sLine; i <= eLine && i < len(contentLines); i++ {
 		stripped := ansi.Strip(contentLines[i])
@@ -161,6 +170,12 @@ func (s *TextSelection) ExtractText(contentLines []string, yOffset int) string {
 		colEnd := len(runes)
 		if i == eLine {
 			colEnd = min(eCol, len(runes))
+		}
+		if colStart < 0 {
+			colStart = 0
+		}
+		if colEnd < 0 {
+			colEnd = 0
 		}
 		if colStart > len(runes) {
 			colStart = len(runes)

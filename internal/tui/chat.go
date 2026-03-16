@@ -14,6 +14,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/hegner123/nostop/internal/api"
+	"github.com/hegner123/nostop/internal/plan"
 	"github.com/hegner123/nostop/internal/storage"
 	"github.com/hegner123/nostop/pkg/nostop"
 )
@@ -26,6 +27,7 @@ type ChatMessage struct {
 	ToolName   string // populated when Role == "tool"
 	ToolTarget string // file/dir the tool is operating on (for display)
 	IsError    bool   // tool execution error
+	IsSummary  bool   // true for archived topic summary messages
 }
 
 // ChatModel is the Bubbletea model for the chat view.
@@ -66,6 +68,11 @@ type ChatModel struct {
 	// contentLines holds the raw content lines (before viewport windowing)
 	// so selection can extract plain text.
 	contentLines []string
+
+	// Message history for up/down arrow cycling
+	messageHistory    []string // Previous user input messages
+	historyIndex      int      // Current position in history (-1 = not browsing)
+	savedCurrentInput string   // Input text saved when starting to browse history
 }
 
 // Stream message types for Bubbletea
@@ -154,6 +161,8 @@ func NewChatModel(engine *nostop.Nostop, ctx context.Context, width, height int)
 		restorePrompt: NewRestorePrompt(nil, "", width),
 		notifications: NewNotificationManager(),
 		selection:     NewTextSelection(),
+		messageHistory: make([]string, 0),
+		historyIndex:   -1,
 	}
 }
 
@@ -238,8 +247,24 @@ func (m *ChatModel) Update(msg tea.Msg) (*ChatModel, tea.Cmd) {
 			return m, vpCmd
 
 		case tea.KeyUp:
-			// Up at first line of input scrolls viewport; otherwise move cursor
+			// Up at first line of input: check for history cycling first, then scroll viewport
 			if m.input.Line() == 0 {
+				// If we have message history, cycle through it
+				if len(m.messageHistory) > 0 {
+					if m.historyIndex == -1 {
+						// Starting to browse history - save current input
+						m.savedCurrentInput = m.input.Value()
+						m.historyIndex = len(m.messageHistory) - 1
+					} else if m.historyIndex > 0 {
+						// Go back in history
+						m.historyIndex--
+					}
+					if m.historyIndex >= 0 && m.historyIndex < len(m.messageHistory) {
+						m.input.SetValue(m.messageHistory[m.historyIndex])
+					}
+					return m, nil
+				}
+				// No history or single line without history - scroll viewport
 				m.viewport, vpCmd = m.viewport.Update(msg)
 				return m, vpCmd
 			}
@@ -247,8 +272,23 @@ func (m *ChatModel) Update(msg tea.Msg) (*ChatModel, tea.Cmd) {
 			return m, tiCmd
 
 		case tea.KeyDown:
-			// Down at last line of input scrolls viewport; otherwise move cursor
+			// Down at last line of input: check for history cycling first, then scroll viewport  
 			if m.input.Line() == m.input.LineCount()-1 {
+				// If browsing history, cycle forward
+				if m.historyIndex != -1 && len(m.messageHistory) > 0 {
+					if m.historyIndex < len(m.messageHistory)-1 {
+						// Go forward in history
+						m.historyIndex++
+						m.input.SetValue(m.messageHistory[m.historyIndex])
+					} else {
+						// Reached newest - restore saved input and exit history mode
+						m.input.SetValue(m.savedCurrentInput)
+						m.historyIndex = -1
+						m.savedCurrentInput = ""
+					}
+					return m, nil
+				}
+				// Not browsing history or single line - scroll viewport
 				m.viewport, vpCmd = m.viewport.Update(msg)
 				return m, vpCmd
 			}
@@ -259,6 +299,11 @@ func (m *ChatModel) Update(msg tea.Msg) (*ChatModel, tea.Cmd) {
 			// Clear selection when user types
 			if m.selection != nil {
 				m.selection.Clear()
+			}
+			// Exit history browsing mode if user starts typing
+			if m.historyIndex != -1 {
+				m.historyIndex = -1
+				m.savedCurrentInput = ""
 			}
 			// Pass other keys to textarea
 			m.input, tiCmd = m.input.Update(msg)
@@ -453,6 +498,82 @@ func (m *ChatModel) Update(msg tea.Msg) (*ChatModel, tea.Cmd) {
 		// Now send the pending message
 		return m.sendMessageDirectly(msg.Content)
 
+	case PlanLoadedMsg:
+		stats := msg.Plan.Stats()
+		m.messages = append(m.messages, ChatMessage{
+			Role: "system",
+			Content: fmt.Sprintf("Plan loaded: %d units (%d pending, %d active, %d complete)",
+				stats.TotalUnits, stats.PendingUnits, stats.ActiveUnits, stats.CompleteUnits),
+		})
+		m.updateViewport()
+		return m, nil
+
+	case PlanRefreshedMsg:
+		if len(msg.ChangedIDs) > 0 {
+			m.messages = append(m.messages, ChatMessage{
+				Role:    "system",
+				Content: fmt.Sprintf("Plan refreshed: %d units changed", len(msg.ChangedIDs)),
+			})
+		} else {
+			m.messages = append(m.messages, ChatMessage{
+				Role:    "system",
+				Content: "Plan refreshed: no changes detected.",
+			})
+		}
+		m.updateViewport()
+		return m, nil
+
+	case PlanInitResultMsg:
+		if msg.SchemaPath != "" {
+			// Success — schema was saved and plan was loaded
+			summary := plan.FormatDetection(msg.Detection)
+			m.messages = append(m.messages, ChatMessage{
+				Role:    "system",
+				Content: summary + "\n\nSchema saved to " + msg.SchemaPath,
+			})
+			m.updateViewport()
+			// Return a PlanLoadedMsg to update the overlay
+			tracker := m.engine.PlanTracker()
+			if tracker != nil && tracker.HasPlan() {
+				return m, func() tea.Msg {
+					return PlanLoadedMsg{Plan: tracker.GetPlan()}
+				}
+			}
+			return m, nil
+		}
+
+		// Ambiguous — show what was found and ask the user
+		var sb strings.Builder
+		sb.WriteString(plan.FormatDetection(msg.Detection))
+		sb.WriteString("\n\nCould not auto-generate schema:")
+		for _, a := range msg.Detection.Ambiguities {
+			sb.WriteString("\n  - ")
+			sb.WriteString(a)
+		}
+		sb.WriteString("\n\nPlease create a nostop-plan.json manually or re-structure your plan file.")
+		m.messages = append(m.messages, ChatMessage{
+			Role:    "system",
+			Content: sb.String(),
+		})
+		m.updateViewport()
+		return m, nil
+
+	case planLoadErrorMsg:
+		m.messages = append(m.messages, ChatMessage{
+			Role:    "system",
+			Content: "Plan error: " + msg.err.Error(),
+		})
+		m.updateViewport()
+		return m, nil
+
+	case planRefreshErrorMsg:
+		m.messages = append(m.messages, ChatMessage{
+			Role:    "system",
+			Content: "Plan refresh error: " + msg.err.Error(),
+		})
+		m.updateViewport()
+		return m, nil
+
 	default:
 		// Pass other messages to textarea and viewport
 		m.input, tiCmd = m.input.Update(msg)
@@ -503,10 +624,32 @@ func (m *ChatModel) handleSendMessage() (*ChatModel, tea.Cmd) {
 		return m, nil
 	}
 
+	// Add non-empty content to message history (avoid duplicates and commands)
+	if content != "" && !strings.HasPrefix(content, "/") && !strings.HasPrefix(content, ":") {
+		// Avoid adding duplicate consecutive messages
+		if len(m.messageHistory) == 0 || m.messageHistory[len(m.messageHistory)-1] != content {
+			m.messageHistory = append(m.messageHistory, content)
+			// Keep history size reasonable (last 100 messages)
+			if len(m.messageHistory) > 100 {
+				m.messageHistory = m.messageHistory[1:]
+			}
+		}
+	}
+
+	// Reset history browsing state
+	m.historyIndex = -1
+	m.savedCurrentInput = ""
+
 	// Vim-style quit commands
 	if content == ":q" || content == ":quit" || content == ":exit" {
 		m.input.Reset()
 		return m, tea.Quit
+	}
+
+	// Slash commands
+	if strings.HasPrefix(content, "/") {
+		m.input.Reset()
+		return m.handleSlashCommand(content)
 	}
 
 	// Check if we have a conversation - create one if not
@@ -580,6 +723,203 @@ func (m ChatModel) checkForArchivedTopics(message string) tea.Cmd {
 		return RestoreCheckResultMsg{
 			Message: message,
 			Topics:  topicPtrs,
+		}
+	}
+}
+
+// handleSlashCommand processes slash commands from the chat input.
+// Supported commands:
+//   - /plan init <file.md> — Detect structure, generate schema, and load plan
+//   - /plan <schema.json>  — Load a plan from a schema JSON file
+//   - /plan refresh        — Re-parse the plan file to detect changes
+//   - /plan                — Show current plan status
+func (m *ChatModel) handleSlashCommand(content string) (*ChatModel, tea.Cmd) {
+	parts := strings.Fields(content)
+	if len(parts) == 0 {
+		return m, nil
+	}
+
+	switch parts[0] {
+	case "/plan":
+		return m.handlePlanCommand(parts[1:])
+	default:
+		m.messages = append(m.messages, ChatMessage{
+			Role:    "system",
+			Content: "Unknown command: " + parts[0],
+		})
+		m.updateViewport()
+		return m, nil
+	}
+}
+
+// handlePlanCommand handles /plan subcommands.
+func (m *ChatModel) handlePlanCommand(args []string) (*ChatModel, tea.Cmd) {
+	if m.engine == nil {
+		m.messages = append(m.messages, ChatMessage{
+			Role:    "system",
+			Content: "No engine available.",
+		})
+		m.updateViewport()
+		return m, nil
+	}
+
+	// /plan (no args) — show status
+	if len(args) == 0 {
+		tracker := m.engine.PlanTracker()
+		if tracker == nil || !tracker.HasPlan() {
+			m.messages = append(m.messages, ChatMessage{
+				Role:    "system",
+				Content: "No plan loaded. Use /plan init <file.md> or /plan <schema.json>",
+			})
+			m.updateViewport()
+			return m, nil
+		}
+
+		stats := tracker.GetStats()
+		activeUnit := tracker.GetActiveWorkUnit()
+
+		var sb strings.Builder
+		sb.WriteString("Plan: ")
+		sb.WriteString(tracker.GetPlanFile())
+		if stats != nil {
+			sb.WriteString(fmt.Sprintf("\n%d total — %d pending, %d active, %d complete, %d archived",
+				stats.TotalUnits, stats.PendingUnits, stats.ActiveUnits, stats.CompleteUnits, stats.ArchivedUnits))
+		}
+		if activeUnit != nil {
+			sb.WriteString("\nActive work unit: ")
+			sb.WriteString(activeUnit.Name)
+		}
+
+		m.messages = append(m.messages, ChatMessage{
+			Role:    "system",
+			Content: sb.String(),
+		})
+		m.updateViewport()
+		return m, nil
+	}
+
+	// /plan init <file.md> — detect structure and generate schema
+	if args[0] == "init" {
+		return m.handlePlanInit(args[1:])
+	}
+
+	// /plan refresh — re-parse plan file
+	if args[0] == "refresh" {
+		tracker := m.engine.PlanTracker()
+		if tracker == nil || !tracker.HasPlan() {
+			m.messages = append(m.messages, ChatMessage{
+				Role:    "system",
+				Content: "No plan loaded to refresh.",
+			})
+			m.updateViewport()
+			return m, nil
+		}
+
+		return m, func() tea.Msg {
+			changedIDs, err := tracker.RefreshPlan(m.ctx)
+			if err != nil {
+				return planLoadErrorMsg{err: err}
+			}
+			return PlanRefreshedMsg{ChangedIDs: changedIDs}
+		}
+	}
+
+	// /plan <schema-path> — load plan from schema file
+	schemaPath := args[0]
+	if !filepath.IsAbs(schemaPath) {
+		schemaPath = filepath.Join(".", schemaPath)
+	}
+
+	convID := m.convID
+	if convID == "" {
+		m.messages = append(m.messages, ChatMessage{
+			Role:    "system",
+			Content: "No active conversation. Send a message first.",
+		})
+		m.updateViewport()
+		return m, nil
+	}
+
+	m.messages = append(m.messages, ChatMessage{
+		Role:    "system",
+		Content: "Loading plan from " + schemaPath + "...",
+	})
+	m.updateViewport()
+
+	return m, func() tea.Msg {
+		tracker := m.engine.GetOrCreatePlanTracker(convID)
+		if err := tracker.LoadPlan(m.ctx, schemaPath); err != nil {
+			return planLoadErrorMsg{err: err}
+		}
+		return PlanLoadedMsg{Plan: tracker.GetPlan()}
+	}
+}
+
+// handlePlanInit detects markdown structure, generates a schema, and loads the plan.
+// If the structure is ambiguous, it shows what was found and asks the user to clarify.
+func (m *ChatModel) handlePlanInit(args []string) (*ChatModel, tea.Cmd) {
+	if len(args) == 0 {
+		m.messages = append(m.messages, ChatMessage{
+			Role:    "system",
+			Content: "Usage: /plan init <plan-file.md>",
+		})
+		m.updateViewport()
+		return m, nil
+	}
+
+	planPath := args[0]
+	if !filepath.IsAbs(planPath) {
+		planPath = filepath.Join(".", planPath)
+	}
+
+	convID := m.convID
+	if convID == "" {
+		m.messages = append(m.messages, ChatMessage{
+			Role:    "system",
+			Content: "No active conversation. Send a message first.",
+		})
+		m.updateViewport()
+		return m, nil
+	}
+
+	m.messages = append(m.messages, ChatMessage{
+		Role:    "system",
+		Content: "Scanning " + planPath + " for structure...",
+	})
+	m.updateViewport()
+
+	engine := m.engine
+	ctx := m.ctx
+
+	return m, func() tea.Msg {
+		// Detect structure
+		detection, err := plan.DetectStructure(planPath)
+		if err != nil {
+			return planLoadErrorMsg{err: fmt.Errorf("structure detection failed: %w", err)}
+		}
+
+		// If ambiguous, return detection for user to review
+		if detection.HasAmbiguities() || detection.Suggested == nil {
+			return PlanInitResultMsg{
+				Detection: detection,
+			}
+		}
+
+		// Save schema to nostop-plan.json next to the plan file
+		schemaPath := filepath.Join(filepath.Dir(planPath), plan.DefaultSchemaFile)
+		if err := detection.Suggested.SaveSchema(schemaPath); err != nil {
+			return planLoadErrorMsg{err: fmt.Errorf("failed to save schema: %w", err)}
+		}
+
+		// Load the plan
+		tracker := engine.GetOrCreatePlanTracker(convID)
+		if err := tracker.LoadPlan(ctx, schemaPath); err != nil {
+			return planLoadErrorMsg{err: fmt.Errorf("schema saved to %s but failed to load: %w", schemaPath, err)}
+		}
+
+		return PlanInitResultMsg{
+			Detection:  detection,
+			SchemaPath: schemaPath,
 		}
 	}
 }
@@ -685,17 +1025,18 @@ func startStream(ch chan tea.Msg, engine *nostop.Nostop, ctx context.Context, co
 
 			// Call Nostop.SendStream
 			Log("startStream: calling Nostop.SendStream")
-			err := engine.SendStream(ctx, convID, message, callback, toolCallback)
+			topicShift, err := engine.SendStream(ctx, convID, message, callback, toolCallback)
 			if err != nil {
 				Log("startStream: error from SendStream: %v", err)
 				ch <- StreamErrorMsg{Err: err}
 				return
 			}
 
-			// Create response object
+			// Create response object with topic shift from engine
 			Log("startStream: stream complete, content length=%d", finalContent.Len())
 			resp := &nostop.Response{
-				Content: finalContent.String(),
+				Content:    finalContent.String(),
+				TopicShift: topicShift,
 			}
 
 			ch <- StreamDoneMsg{Response: resp}
@@ -750,16 +1091,10 @@ func (m ChatModel) renderMessages() string {
 
 		switch msg.Role {
 		case "user":
-			label := m.styles.UserLabel.Render("You:")
-			b.WriteString(label)
-			b.WriteString("\n")
 			content := m.wrapText(msg.Content, maxWidth)
 			b.WriteString(m.styles.UserMessage.Render(content))
 
 		case "assistant":
-			label := m.styles.AssistantLabel.Render("Assistant:")
-			b.WriteString(label)
-			b.WriteString("\n")
 			content := m.wrapText(msg.Content, maxWidth)
 			if content == "" && m.streaming {
 				content = m.styles.Placeholder.Render("...")
@@ -767,11 +1102,17 @@ func (m ChatModel) renderMessages() string {
 			b.WriteString(m.styles.AssistantMessage.Render(content))
 
 		case "system":
-			label := m.styles.SystemLabel.Render("System:")
-			b.WriteString(label)
-			b.WriteString("\n")
-			content := m.wrapText(msg.Content, maxWidth)
-			b.WriteString(m.styles.SystemMessage.Render(content))
+			// Summary messages get a distinct dimmed style (no label)
+			if msg.IsSummary {
+				content := m.wrapText(msg.Content, maxWidth)
+				b.WriteString(m.styles.SummaryMessage.Render(content))
+			} else {
+				label := m.styles.SystemLabel.Render("System:")
+				b.WriteString(label)
+				b.WriteString("\n")
+				content := m.wrapText(msg.Content, maxWidth)
+				b.WriteString(m.styles.SystemMessage.Render(content))
+			}
 
 		case "tool":
 			toolDisplay := msg.ToolName
@@ -1172,8 +1513,9 @@ func (m *ChatModel) LoadMessages(ctx context.Context) error {
 	m.messages = make([]ChatMessage, 0, len(messages))
 	for _, msg := range messages {
 		m.messages = append(m.messages, ChatMessage{
-			Role:    string(msg.Role),
-			Content: msg.Content,
+			Role:      string(msg.Role),
+			Content:   msg.Content,
+			IsSummary: msg.IsSummary,
 		})
 	}
 
